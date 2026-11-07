@@ -1,9 +1,17 @@
 #pragma once
 
+#include "Audio.hpp"
+
 #include <random>
 #include <vector>
 
 struct GLFWwindow;
+
+// Туннель стоит на трассе в «пройденных метрах»: период 6000 м,
+// длина 700 м, первый примерно на отметке 3500 м.
+constexpr float kTunnelPeriod = 6000.0f;
+constexpr float kTunnelPhase = 3500.0f;
+constexpr float kTunnelLength = 700.0f;
 
 struct Color {
     float r = 1.0f;
@@ -15,14 +23,24 @@ struct Color {
 enum class GameState {
     Running,
     Paused,
-    GameOver
+    GameOver,
+    Garage      // меню улучшений (открывается клавишей G на паузе или после аварии)
 };
+
+constexpr int kUpgradeCount = 4;
+constexpr int kMaxUpgradeLevel = 5;
 
 enum class TrafficType {
     Sedan,
     Sport,
     Truck,
     Van
+};
+
+enum class ChaseState {
+    Idle,      // погони нет
+    Warning,   // полиция заметила вас, сейчас начнётся погоня
+    Chasing    // идёт погоня
 };
 
 struct TrafficVehicle {
@@ -104,6 +122,17 @@ public:
         return worldTime_;
     }
 
+    // пройденный путь в метрах
+    float distance() const {
+        return distance_;
+    }
+
+    // 0 = сухо, 1 = сильный дождь; в туннеле всегда 0
+    float rain() const;
+
+    // 0..1, насколько камера внутри туннеля
+    float tunnelInside() const;
+
     int score() const {
         return score_;
     }
@@ -144,6 +173,44 @@ public:
         return pickups_;
     }
 
+    // ---- Полицейская погоня ----
+    ChaseState chaseState() const {
+        return chaseState_;
+    }
+
+    // расстояние до полиции сзади, метры (больше 140 = оторвались)
+    float policeGap() const {
+        return policeGap_;
+    }
+
+    float policeX() const {
+        return policeX_;
+    }
+
+    // true, если игра закончилась тем, что вас поймали
+    bool busted() const {
+        return busted_;
+    }
+
+    // сколько ещё секунд показывать надпись ESCAPED
+    float escapeTimer() const {
+        return escapeTimer_;
+    }
+
+    // ---- Гараж ----
+    int bank() const {
+        return bank_;
+    }
+
+    int upgradeLevel(int id) const;
+
+    // цена следующего уровня, -1 если уже максимум
+    int upgradeCost(int id) const;
+
+    static const char* upgradeName(int id);
+
+    static const char* upgradeInfo(int id);
+
     static float laneCenter(int lane);
 
 private:
@@ -166,6 +233,14 @@ private:
     void checkCollisions();
 
     void updateDifficulty(float dt);
+
+    void updateChase(float dt);
+
+    bool buyUpgrade(int id);
+
+    void loadGarage();
+
+    void saveGarage() const;
 
     void awardNearMiss(TrafficVehicle& vehicle);
 
@@ -211,6 +286,8 @@ private:
 
     float roadOffset_ = 0.0f;
 
+    float distance_ = 0.0f;
+
     float scoreValue_ = 0.0f;
 
     int score_ = 0;
@@ -232,6 +309,29 @@ private:
     float coinInterval_ = 4.0f;
 
     float difficulty_ = 1.0f;
+
+    ChaseState chaseState_ = ChaseState::Idle;
+
+    float chaseTimer_ = 0.0f;
+
+    float policeGap_ = 0.0f;
+
+    float policeX_ = 0.0f;
+
+    float escapeTimer_ = 0.0f;
+
+    bool busted_ = false;
+
+    // накопленные монеты и уровни улучшений: 0 двигатель, 1 шины, 2 броня, 3 магнит
+    int bank_ = 0;
+
+    int upgrades_[kUpgradeCount] = { 0, 0, 0, 0 };
+
+    GameState garageReturn_ = GameState::Paused;
+
+    bool garageWasDown_ = false;
+
+    bool upgradeKeyWasDown_[kUpgradeCount] = { false, false, false, false };
 
     std::vector<TrafficVehicle>
         traffic_;
@@ -261,4 +361,6 @@ private:
 
     std::uniform_int_distribution<int>
         typeDist_;
+
+    Audio audio_;
 };
