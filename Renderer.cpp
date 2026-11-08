@@ -163,6 +163,10 @@ namespace {
     // 0 = день, 1 = глубокая ночь (выставляется в Renderer::render)
     float gNightLevel = 0.0f;
 
+    float gDriverTime = 0.0f;   // время для анимации водителя
+    float gDriverWind = 0.0f;   // 0..1, сила встречного ветра (скорость)
+    float gDriverAlert = 0.0f;  // 0..1, водитель напрягся: впереди машина, обе руки на руле
+
     // 0 = ясно, 1 = сильный дождь (берётся из Game::rain(), в туннеле 0)
     float gRain = 0.0f;
 
@@ -304,6 +308,262 @@ namespace {
         glEnd();
     }
 
+    // ---------- водитель, салон и зеркала машины игрока ----------
+
+    // коробка вдоль отрезка a -> b (рука, нога и т.п.)
+    void drawLimb(const Vec3& a, const Vec3& b, float thick, Color color) {
+        const Vec3 d = b - a;
+        const float len = std::sqrt(d.x * d.x + d.y * d.y + d.z * d.z);
+
+        if (len < 0.0001f) {
+            return;
+        }
+
+        const float yaw = std::atan2(d.x, d.z) * 180.0f / kPi;
+        const float pitch = -std::asin(std::clamp(d.y / len, -1.0f, 1.0f)) * 180.0f / kPi;
+
+        glPushMatrix();
+        glTranslatef((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f, (a.z + b.z) * 0.5f);
+        glRotatef(yaw, 0.0f, 1.0f, 0.0f);
+        glRotatef(pitch, 1.0f, 0.0f, 0.0f);
+        drawBox(0.0f, 0.0f, 0.0f, thick, thick, len, color);
+        glPopMatrix();
+    }
+
+    // левая рука водителя: либо на двери за окном (grip = 0), либо на руле (grip = 1)
+    void drawDriverLeftHand(const Vec3& elbow, const Vec3& wrist, Color skin, Color sleeve, float grip) {
+        const float t = gDriverTime;
+        const float w = gDriverWind;
+        const float calm = 1.0f - grip;   // на руле кисть не машет
+
+        // предплечье: рукав до середины, дальше кожа
+        const Vec3 mid = {
+            elbow.x + (wrist.x - elbow.x) * 0.45f,
+            elbow.y + (wrist.y - elbow.y) * 0.45f,
+            elbow.z + (wrist.z - elbow.z) * 0.45f
+        };
+
+        drawLimb(elbow, mid, 0.115f, sleeve);
+        drawLimb(mid, wrist, 0.085f, skin);
+
+        // часы на запястье
+        drawBox(wrist.x + 0.02f, wrist.y, wrist.z, 0.07f, 0.095f, 0.095f, { 0.08f, 0.08f, 0.10f, 1.0f });
+        drawBox(wrist.x + 0.02f, wrist.y + 0.052f, wrist.z, 0.045f, 0.006f, 0.05f, { 0.55f, 0.85f, 1.0f, 1.0f });
+
+        // кисть: на окне ладонь покачивается на ветру, на руле сжимается в кулак
+        const float flapAmp = (7.0f + 16.0f * w) * calm;
+        const float flapFreq = 4.5f + 4.0f * w;
+
+        const float pitch = 10.0f * calm + std::sin(t * flapFreq) * flapAmp;
+        const float yawW = std::sin(t * flapFreq * 0.7f + 1.1f) * (4.0f + 8.0f * w) * calm;
+        const float fist = 1.0f - 0.7f * grip;   // длина пальцев
+
+        glPushMatrix();
+        glTranslatef(wrist.x - 0.05f, wrist.y, wrist.z);
+        glRotatef(yawW, 0.0f, 1.0f, 0.0f);
+        glRotatef(pitch, 0.0f, 0.0f, 1.0f);
+
+        // ладонь
+        drawBox(-0.06f * fist, 0.0f, 0.0f, 0.12f * fist, 0.085f, 0.035f + 0.04f * grip, skin);
+
+        // четыре пальца, каждый чуть по-своему дрожит
+        for (int i = 0; i < 4; ++i) {
+            const float fy = -0.032f + static_cast<float>(i) * 0.022f;
+            const float fl = (0.085f - ((i == 0 || i == 3) ? 0.012f : 0.0f)) * fist;
+            const float wob = std::sin(t * (flapFreq * 1.6f) + static_cast<float>(i) * 0.9f) * (3.0f + 6.0f * w) * calm;
+
+            glPushMatrix();
+            glTranslatef(-0.12f * fist, fy, 0.0f);
+            glRotatef(wob, 0.0f, 0.0f, 1.0f);
+            drawBox(-fl * 0.5f, 0.0f, 0.0f, fl, 0.019f, 0.028f + 0.02f * grip, skin);
+            glPopMatrix();
+        }
+
+        // большой палец
+        drawBox(-0.045f * fist, 0.058f, 0.0f, 0.05f * fist, 0.03f, 0.028f, skin);
+
+        glPopMatrix();
+    }
+
+    // КАБРИОЛЕТ: крыши нет, водитель виден целиком
+    void drawPlayerCabin(float width, float length, float bodyHeight, Color body) {
+        const float half = width * 0.37f;                 // половина ширины салона
+        const float beltY = bodyHeight + 0.025f;          // линия дверей
+        const float windZ = -length * 0.215f;             // низ лобового стекла
+        const float rearZ = length * 0.10f;               // конец салона, дальше - накладка за сиденьями
+
+        const Color cabin = mixColor(body, { 0.0f, 0.0f, 0.0f, 1.0f }, 0.18f);
+        const Color seat = { 0.13f, 0.12f, 0.14f, 1.0f };
+        const Color seatAccent = { 0.62f, 0.10f, 0.08f, 1.0f };
+        const Color skin = { 0.86f, 0.66f, 0.52f, 1.0f };
+        const Color hair = { 0.14f, 0.09f, 0.06f, 1.0f };
+        const Color jacket = { 0.96f, 0.55f, 0.12f, 1.0f };
+        const Color jacketDark = { 0.78f, 0.40f, 0.08f, 1.0f };
+        const Color metal = { 0.72f, 0.74f, 0.78f, 1.0f };
+
+        // 0 = рука на окне, 1 = обе руки на руле (плавно)
+        const float grip = gDriverAlert * gDriverAlert * (3.0f - 2.0f * gDriverAlert);
+
+        // тёмный пол салона
+        drawBox(0.0f, beltY + 0.006f, (windZ + rearZ) * 0.5f, half * 2.0f, 0.012f, rearZ - windZ, { 0.06f, 0.06f, 0.07f, 1.0f });
+
+        // борта дверей: на левом лежит локоть водителя
+        for (int side = -1; side <= 1; side += 2) {
+            drawBox(static_cast<float>(side) * (half + 0.03f), beltY + 0.02f, (windZ + rearZ) * 0.5f, 0.10f, 0.06f, rearZ - windZ, cabin);
+        }
+
+        // накладка за сиденьями и две дуги безопасности
+        drawBox(0.0f, beltY + 0.02f, (rearZ + length * 0.17f) * 0.5f, half * 2.0f + 0.16f, 0.05f, length * 0.17f - rearZ, cabin);
+
+        for (int side = -1; side <= 1; side += 2) {
+            const float hx = static_cast<float>(side) * half * 0.52f;
+
+            drawLimb({ hx, beltY + 0.02f, rearZ + 0.04f }, { hx, beltY + 0.30f, rearZ + 0.02f }, 0.055f, metal);
+            drawBox(hx, beltY + 0.325f, rearZ + 0.02f, 0.13f, 0.045f, 0.08f, metal);
+        }
+
+        // лобовое стекло: рамка и полупрозрачное стекло
+        const float wTopY = beltY + 0.34f;
+        const float wTopZ = windZ + 0.20f;
+
+        for (int side = -1; side <= 1; side += 2) {
+            const float sx = static_cast<float>(side) * (half + 0.01f);
+
+            drawLimb({ sx, beltY, windZ }, { sx, wTopY, wTopZ }, 0.05f, cabin);
+        }
+        drawBox(0.0f, wTopY, wTopZ, half * 2.0f + 0.04f, 0.04f, 0.05f, cabin);
+
+        // ---- салон ----
+        const float seatBackZ = -0.08f;
+
+        for (int side = -1; side <= 1; side += 2) {
+            const float sx = static_cast<float>(side) * half * 0.52f;
+
+            // подушка и спинка
+            drawBox(sx, bodyHeight - 0.06f, seatBackZ - 0.17f, 0.42f, 0.10f, 0.40f, seat);
+            drawBox(sx, bodyHeight + 0.10f, seatBackZ, 0.42f, 0.36f, 0.10f, seat);
+            drawBox(sx, bodyHeight + 0.10f, seatBackZ + 0.052f, 0.30f, 0.28f, 0.012f, seatAccent);
+        }
+
+        // водитель (левое сиденье, x < 0)
+        const float dx = -half * 0.52f;
+        const float torsoZ = seatBackZ - 0.17f;
+
+        // торс, плечи, шея, голова
+        drawBox(dx, bodyHeight + 0.08f, torsoZ, 0.38f, 0.30f, 0.20f, jacket);
+        drawBox(dx, bodyHeight + 0.23f, torsoZ, 0.44f, 0.08f, 0.20f, jacketDark);
+        drawBox(dx, bodyHeight + 0.30f, torsoZ, 0.09f, 0.07f, 0.09f, skin);
+
+        // голова чуть поворачивается к зеркалу, когда рука на окне, и смотрит прямо на дорогу, когда на руле
+        const float headTurn = (1.0f - grip) * std::sin(gDriverTime * 0.6f) * 6.0f;
+
+        glPushMatrix();
+        glTranslatef(dx, 0.0f, torsoZ + 0.01f);
+        glRotatef(headTurn, 0.0f, 1.0f, 0.0f);
+
+        const float headY = bodyHeight + 0.41f;
+        const float flutter = std::sin(gDriverTime * 17.0f) * 0.012f * gDriverWind;
+
+        drawBox(0.0f, headY, 0.0f, 0.19f, 0.20f, 0.20f, skin);
+        drawBox(0.0f, headY + 0.07f, 0.015f, 0.215f, 0.075f, 0.225f, hair);                 // волосы сверху
+        drawBox(0.0f, headY - 0.01f, 0.105f + flutter, 0.20f, 0.15f, 0.03f, hair);          // затылок, треплет ветер
+        drawBox(-0.105f, headY - 0.01f, 0.0f, 0.025f, 0.06f, 0.04f, skin);                  // уши
+        drawBox(0.105f, headY - 0.01f, 0.0f, 0.025f, 0.06f, 0.04f, skin);
+
+        glPopMatrix();
+
+        // руль
+        const float wheelZ = torsoZ - 0.30f;
+        const Color wheelC = { 0.05f, 0.05f, 0.06f, 1.0f };
+
+        drawBox(dx, bodyHeight + 0.34f, wheelZ, 0.46f, 0.04f, 0.04f, wheelC);
+        drawBox(dx, bodyHeight + 0.10f, wheelZ, 0.46f, 0.04f, 0.04f, wheelC);
+        drawBox(dx - 0.23f, bodyHeight + 0.22f, wheelZ, 0.04f, 0.28f, 0.04f, wheelC);
+        drawBox(dx + 0.23f, bodyHeight + 0.22f, wheelZ, 0.04f, 0.28f, 0.04f, wheelC);
+
+        // правая рука всегда на руле
+        const Vec3 rShoulder = { dx + 0.18f, bodyHeight + 0.21f, torsoZ };
+        const Vec3 rElbow = { dx + 0.40f, bodyHeight + 0.14f, torsoZ - 0.10f };
+        const Vec3 rHand = { dx + 0.23f, bodyHeight + 0.22f, wheelZ + 0.02f };
+
+        drawLimb(rShoulder, rElbow, 0.105f, jacket);
+        drawLimb(rElbow, rHand, 0.085f, skin);
+        drawBox(rHand.x, rHand.y, rHand.z, 0.075f, 0.09f, 0.075f, skin);
+
+        // левая рука: плечо -> (локоть, запястье) между окном и рулём
+        const Vec3 lShoulder = { dx - 0.20f, bodyHeight + 0.21f, torsoZ };
+
+        const Vec3 elbowRest = { -(half + 0.07f), beltY + 0.08f, torsoZ - 0.12f };
+        const Vec3 wristRest = { -(half + 0.56f), beltY + 0.20f, torsoZ + 0.04f };
+
+        const Vec3 elbowGrip = { dx - 0.40f, bodyHeight + 0.14f, torsoZ - 0.10f };
+        const Vec3 wristGrip = { dx - 0.17f, bodyHeight + 0.22f, wheelZ + 0.03f };
+
+        const Vec3 elbow = {
+            elbowRest.x + (elbowGrip.x - elbowRest.x) * grip,
+            elbowRest.y + (elbowGrip.y - elbowRest.y) * grip,
+            elbowRest.z + (elbowGrip.z - elbowRest.z) * grip
+        };
+
+        const Vec3 wrist = {
+            wristRest.x + (wristGrip.x - wristRest.x) * grip,
+            wristRest.y + (wristGrip.y - wristRest.y) * grip,
+            wristRest.z + (wristGrip.z - wristRest.z) * grip
+        };
+
+        drawLimb(lShoulder, elbow, 0.115f, jacket);
+        drawDriverLeftHand(elbow, wrist, skin, jacket, grip);
+
+        // ---- лобовое стекло (полупрозрачное, рисуется последним) ----
+        glDisable(GL_LIGHTING);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthMask(GL_FALSE);
+
+        glBegin(GL_QUADS);
+        setColor({ 0.12f, 0.26f, 0.34f, 0.28f });
+        glVertex3f(-half, beltY, windZ);
+        glVertex3f(half, beltY, windZ);
+        glVertex3f(half, wTopY, wTopZ);
+        glVertex3f(-half, wTopY, wTopZ);
+        glEnd();
+
+        glBegin(GL_QUADS);
+        setColor({ 0.80f, 0.92f, 1.0f, 0.14f });
+        glVertex3f(half * 0.30f, beltY, windZ);
+        glVertex3f(half * 0.65f, beltY, windZ);
+        glVertex3f(half * 0.65f, wTopY, wTopZ);
+        glVertex3f(half * 0.30f, wTopY, wTopZ);
+        glEnd();
+
+        glDepthMask(GL_TRUE);
+        glDisable(GL_BLEND);
+        glEnable(GL_LIGHTING);
+    }
+
+    // боковые зеркала игрока: крупные, на ножке, с отражающим стеклом
+    void drawPlayerMirrors(float width, float length, float bodyHeight, Color body) {
+        const Color housing = mixColor(body, { 0.0f, 0.0f, 0.0f, 1.0f }, 0.35f);
+        const Color glassM = { 0.62f, 0.78f, 0.92f, 1.0f };
+        const float my = bodyHeight + 0.15f;
+        const float mz = -length * 0.15f;
+
+        for (int side = -1; side <= 1; side += 2) {
+            const float sgn = static_cast<float>(side);
+            const float mx = sgn * (width * 0.5f + 0.17f);
+
+            // ножка
+            drawBox(sgn * (width * 0.5f + 0.05f), my - 0.05f, mz, 0.12f, 0.04f, 0.05f, housing);
+
+            // корпус и стекло, развёрнутое назад к камере
+            drawBox(mx, my, mz, 0.17f, 0.13f, 0.08f, housing);
+            drawBox(mx, my, mz + 0.043f, 0.145f, 0.105f, 0.012f, glassM);
+
+            // блик
+            drawBox(mx - sgn * 0.03f, my + 0.02f, mz + 0.051f, 0.03f, 0.04f, 0.004f, { 1.0f, 1.0f, 1.0f, 1.0f });
+        }
+    }
+
     void drawCarModel(
         float x,
         float z,
@@ -371,6 +631,11 @@ namespace {
                 type == TrafficType::Van
                 ? height * 0.63f
                 : height * 0.52f;
+            if (player) {
+                drawPlayerCabin(width, length, bodyHeight, body);
+                drawPlayerMirrors(width, length, bodyHeight, body);
+            }
+            else {
 
             drawBox(
                 0.0f,
@@ -405,7 +670,7 @@ namespace {
 
             drawBox(-(width * 0.5f + 0.10f), bodyHeight + 0.10f, -length * 0.14f, 0.18f, 0.10f, 0.12f, mirror);
             drawBox(width * 0.5f + 0.10f, bodyHeight + 0.10f, -length * 0.14f, 0.18f, 0.10f, 0.12f, mirror);
-
+            }
             // задний спойлер у спортивных машин в потоке
             if (type == TrafficType::Sport && !player) {
                 const Color dark = { 0.04f, 0.04f, 0.05f, 1.0f };
@@ -419,10 +684,10 @@ namespace {
             if (player) {
                 const Color stripe = { 0.95f, 0.96f, 1.0f, 1.0f };
                 const float topY = bodyHeight * 1.05f + 0.006f;
-                const float roofY = bodyHeight + cabinHeight * 0.95f + 0.006f;
+                //const float roofY = bodyHeight + cabinHeight * 0.95f + 0.006f;
 
                 drawBox(0.0f, topY, -length * 0.38f, width * 0.18f, 0.012f, length * 0.24f, stripe);
-                drawBox(0.0f, roofY, -length * 0.03f, width * 0.16f, 0.012f, cabinLength, stripe);
+                //drawBox(0.0f, roofY, -length * 0.03f, width * 0.16f, 0.012f, cabinLength, stripe);
                 drawBox(0.0f, topY, length * 0.35f, width * 0.18f, 0.012f, length * 0.28f, stripe);
             }
         }
@@ -1868,6 +2133,39 @@ void Renderer::render(const Game& game)
     gNightLevel = std::clamp((night - 0.30f) / 0.35f, 0.0f, 1.0f);
 
     updateEffects(game);
+
+
+    gDriverTime = game.worldTime();
+    gDriverWind = std::clamp(game.speed() / std::max(game.maxSpeed(), 1.0f), 0.0f, 1.0f);
+
+    // водитель: если впереди машина - обе руки на руль, проехали - рука снова на окне
+    {
+        static float prevT = 0.0f;
+        static float hold = 0.0f;
+
+        const float nowT = game.worldTime();
+        const float dtD = std::clamp(nowT - prevT, 0.0f, 0.1f);
+        prevT = nowT;
+
+        bool carAhead = false;
+
+        for (const auto& v : game.traffic()) {
+            const float ahead = game.playerZ() - v.z;                 // > 0: машина впереди
+            const float side = std::fabs(v.x - game.playerX());
+
+            if (ahead > -3.0f && ahead < 40.0f && side < 2.2f) {
+                carAhead = true;
+                break;
+            }
+        }
+
+        // держим руки на руле ещё 0.7 с после того, как машина осталась позади
+        hold = carAhead ? 0.7f : std::max(0.0f, hold - dtD);
+
+        const float target = hold > 0.0f ? 1.0f : 0.0f;
+
+        gDriverAlert += (target - gDriverAlert) * std::min(1.0f, dtD * 9.0f);
+    }
 
     // в туннеле туман и фон тёмные, чтобы дальний конец не светился днём
     const Color tunnelFog = { 0.02f, 0.02f, 0.04f, 1.0f };
