@@ -111,7 +111,9 @@ Game::Game()
     loadGarage();
     loadStats();
     loadTop();
+    loadSettings();
     audio_.start();
+    applySettings();
     reset();
 
     // игра стартует с главного меню; Enter или R начинает забег
@@ -363,6 +365,111 @@ void Game::saveGarage() const
         << ' ' << selectedCar_ << ' ' << carMask_ << ' ' << selectedTrack_;
 }
 
+int Game::settingValue(int id) const
+{
+    if (id < 0 || id >= kSettingCount)
+    {
+        return 0;
+    }
+
+    return settings_[id];
+}
+
+const char* Game::settingName(int id)
+{
+    switch (id)
+    {
+    case 0: return "MASTER VOLUME";
+    case 1: return "ENGINE";
+    case 2: return "EFFECTS";
+    case 3: return "AMBIENT";
+    case 4: return "SCREEN SHAKE";
+    case 5: return "SPEED EFFECTS";
+    default: return "";
+    }
+}
+
+const char* Game::settingInfo(int id)
+{
+    switch (id)
+    {
+    case 0: return "ALL SOUNDS";
+    case 1: return "YOUR CAR MOTOR";
+    case 2: return "COINS CRASH SIREN TIRES";
+    case 3: return "RAIN WIND BOOST";
+    case 4: return "CAMERA SHAKE ON HITS";
+    case 5: return "SPEED LINES AND DARK EDGES";
+    default: return "";
+    }
+}
+
+void Game::applySettings()
+{
+    const float k = 1.0f / static_cast<float>(kSettingMax);
+
+    audio_.setVolumes(
+        static_cast<float>(settings_[0]) * k,
+        static_cast<float>(settings_[1]) * k,
+        static_cast<float>(settings_[2]) * k,
+        static_cast<float>(settings_[3]) * k
+    );
+}
+
+void Game::changeSetting(int id, int delta)
+{
+    if (id < 0 || id >= kSettingCount)
+    {
+        return;
+    }
+
+    const int value = std::clamp(settings_[id] + delta, 0, kSettingMax);
+
+    if (value == settings_[id])
+    {
+        return;
+    }
+
+    settings_[id] = value;
+
+    applySettings();
+    saveSettings();
+
+    // на общей громкости и эффектах сразу слышно пример
+    if (id == 0 || id == 2)
+    {
+        audio_.playCoin();
+    }
+}
+
+void Game::loadSettings()
+{
+    std::ifstream file("settings.txt");
+
+    for (int i = 0; i < kSettingCount; ++i)
+    {
+        int value = kSettingMax;
+
+        if (file >> value)
+        {
+            settings_[i] = std::clamp(value, 0, kSettingMax);
+        }
+        else
+        {
+            settings_[i] = kSettingMax;
+        }
+    }
+}
+
+void Game::saveSettings() const
+{
+    std::ofstream file("settings.txt", std::ios::trunc);
+
+    for (int i = 0; i < kSettingCount; ++i)
+    {
+        file << settings_[i] << ' ';
+    }
+}
+
 float Game::tunnelInside() const
 {
     const float k = std::floor((distance_ - kTunnelPhase) / kTunnelPeriod);
@@ -507,7 +614,7 @@ void Game::handleInput(GLFWwindow* window, float dt)
     // R в гараже не сбрасывает забег, чтобы не нажать случайно
     if (pressedOnce(window, GLFW_KEY_R, restartWasDown_))
     {
-        if (state_ != GameState::Garage && state_ != GameState::Achievements)
+        if (state_ != GameState::Garage && state_ != GameState::Achievements && state_ != GameState::Settings)
         {
             reset();
         }
@@ -575,6 +682,52 @@ void Game::handleInput(GLFWwindow* window, float dt)
         else if (state_ == GameState::Achievements)
         {
             state_ = achReturn_;
+        }
+    }
+
+    // настройки: O открывает на паузе, после аварии и в главном меню, повторно закрывает;
+    // стрелки вверх и вниз выбирают строку, влево и вправо мен€ют значение
+    {
+        const bool open = pressedOnce(window, GLFW_KEY_O, settingsKeyWasDown_);
+        const bool up = pressedOnce(window, GLFW_KEY_UP, setUpWasDown_);
+        const bool down = pressedOnce(window, GLFW_KEY_DOWN, setDownWasDown_);
+        const bool left = pressedOnce(window, GLFW_KEY_LEFT, setLeftWasDown_);
+        const bool right = pressedOnce(window, GLFW_KEY_RIGHT, setRightWasDown_);
+
+        if (open)
+        {
+            if (state_ == GameState::Paused || state_ == GameState::GameOver || state_ == GameState::Menu)
+            {
+                settingsReturn_ = state_;
+                state_ = GameState::Settings;
+            }
+            else if (state_ == GameState::Settings)
+            {
+                state_ = settingsReturn_;
+                saveSettings();
+            }
+        }
+        else if (state_ == GameState::Settings)
+        {
+            if (up)
+            {
+                settingsCursor_ = (settingsCursor_ + kSettingCount - 1) % kSettingCount;
+            }
+
+            if (down)
+            {
+                settingsCursor_ = (settingsCursor_ + 1) % kSettingCount;
+            }
+
+            if (left)
+            {
+                changeSetting(settingsCursor_, -1);
+            }
+
+            if (right)
+            {
+                changeSetting(settingsCursor_, 1);
+            }
         }
     }
 
@@ -702,7 +855,16 @@ void Game::update(float dt)
     if (state_ != GameState::Running)
     {
         // пауза или авари€: звук плавно затихает
-        audio_.update(speedKmh(), false, 0.0f, 0.0f, false);
+        if (state_ == GameState::Settings)
+        {
+            // в настройках играет двигатель (на строке Ђокружениеї ещЄ и дождь), чтобы слышать изменени€
+            audio_.update(120.0f, false, settingsCursor_ == 3 ? 0.6f : 0.0f, 0.0f, true);
+        }
+        else
+        {
+            audio_.update(speedKmh(), false, 0.0f, 0.0f, false);
+        }
+
         audio_.setSiren(0.0f);
         audio_.setSkid(0.0f);
         return;

@@ -26,7 +26,8 @@ enum class GameState {
     GameOver,
     Garage,     // меню улучшений (открывается клавишей G на паузе, после аварии и в главном меню)
     Menu,       // главное меню при запуске игры
-    Achievements // список достижений (клавиша H на паузе, после аварии и в главном меню)
+    Achievements, // список достижений (клавиша H на паузе, после аварии и в главном меню)
+    Settings     // настройки звука и эффектов (клавиша O на паузе, после аварии и в главном меню)
 };
 
 constexpr int kUpgradeCount = 4;
@@ -46,6 +47,11 @@ constexpr int kAchCount = 8;
 
 // трассы: HIGHWAY, DESERT, SNOW
 constexpr int kTrackCount = 3;
+
+// настройки: 0 общая громкость, 1 двигатель, 2 эффекты, 3 окружение (дождь, ветер, буст),
+// 4 тряска камеры, 5 эффекты скорости; каждое значение 0..10
+constexpr int kSettingCount = 6;
+constexpr int kSettingMax = 10;
 
 enum class TrafficType {
     Sedan,
@@ -447,6 +453,27 @@ public:
 
     static Color paintColor(int id);
 
+    // ---- Настройки ----
+    int settingValue(int id) const;
+
+    // на какой строке стоит курсор в настройках
+    int settingsCursor() const {
+        return settingsCursor_;
+    }
+
+    static const char* settingName(int id);
+
+    static const char* settingInfo(int id);
+
+    // множители 0..1 для графики
+    float shakeScale() const {
+        return static_cast<float>(settings_[4]) / static_cast<float>(kSettingMax);
+    }
+
+    float speedFxScale() const {
+        return static_cast<float>(settings_[5]) / static_cast<float>(kSettingMax);
+    }
+
     static float laneCenter(int lane);
 
 private:
@@ -504,6 +531,14 @@ private:
     void loadGarage();
 
     void saveGarage() const;
+
+    void loadSettings();
+
+    void saveSettings() const;
+
+    void applySettings();
+
+    void changeSetting(int id, int delta);
 
     void awardNearMiss(TrafficVehicle& vehicle);
 
@@ -669,6 +704,22 @@ private:
     bool paintRightWasDown_ = false;
 
     bool paintApplyWasDown_ = false;
+
+    int settings_[kSettingCount] = { 10, 10, 10, 10, 10, 10 };
+
+    int settingsCursor_ = 0;
+
+    GameState settingsReturn_ = GameState::Menu;
+
+    bool settingsKeyWasDown_ = false;
+
+    bool setUpWasDown_ = false;
+
+    bool setDownWasDown_ = false;
+
+    bool setLeftWasDown_ = false;
+
+    bool setRightWasDown_ = false;
 
     std::vector<TrafficVehicle>
         traffic_;

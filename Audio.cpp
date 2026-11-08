@@ -41,6 +41,10 @@ struct AudioState {
     std::atomic<float> targetMaster{ 0.0f };
     std::atomic<float> targetSiren{ 0.0f };
     std::atomic<float> targetSkid{ 0.0f };
+    std::atomic<float> targetVolMaster{ 1.0f };
+    std::atomic<float> targetVolEngine{ 1.0f };
+    std::atomic<float> targetVolFx{ 1.0f };
+    std::atomic<float> targetVolAmb{ 1.0f };
     std::atomic<int> crashTrigger{ 0 };
     std::atomic<int> coinTrigger{ 0 };
     std::atomic<int> powerTrigger{ 0 };
@@ -58,6 +62,10 @@ struct AudioState {
     float curMaster = 0.0f;
     float curSiren = 0.0f;
     float curSkid = 0.0f;
+    float curVolMaster = 1.0f;
+    float curVolEngine = 1.0f;
+    float curVolFx = 1.0f;
+    float curVolAmb = 1.0f;
 
     float phase = 0.0f;
     float phase2 = 0.0f;
@@ -159,6 +167,10 @@ namespace {
         const float tMaster = s.targetMaster.load();
         const float tSiren = s.targetSiren.load();
         const float tSkid = s.targetSkid.load();
+        const float tVolMaster = s.targetVolMaster.load();
+        const float tVolEngine = s.targetVolEngine.load();
+        const float tVolFx = s.targetVolFx.load();
+        const float tVolAmb = s.targetVolAmb.load();
 
         const int crashNow = s.crashTrigger.load();
         if (crashNow != s.seenCrash) {
@@ -208,6 +220,10 @@ namespace {
             s.curMaster += (tMaster - s.curMaster) * 0.0006f;
             s.curSiren += (tSiren - s.curSiren) * 0.0006f;
             s.curSkid += (tSkid - s.curSkid) * 0.0015f;
+            s.curVolMaster += (tVolMaster - s.curVolMaster) * 0.002f;
+            s.curVolEngine += (tVolEngine - s.curVolEngine) * 0.002f;
+            s.curVolFx += (tVolFx - s.curVolFx) * 0.002f;
+            s.curVolAmb += (tVolAmb - s.curVolAmb) * 0.002f;
 
             const float white = whiteNoise(s);
 
@@ -252,7 +268,7 @@ namespace {
             const float rumbleSig = s.rumbleLP * 8.0f * st.rumble;
 
             const float engineBody = s.engLP2 * 0.55f + chuff * 0.10f + rumbleSig * 0.35f;
-            const float engine = engineBody * (0.80f + 0.40f * rpmN) * s.curEngine * 0.30f;
+            const float engine = engineBody * (0.80f + 0.40f * rpmN) * s.curEngine * s.curVolEngine * 0.30f;
 
 
             // дождь: шипение (шум без низких частот)
@@ -376,7 +392,9 @@ namespace {
                 skid = (std::sin(kTwoPi * s.skidPhase) * 0.5f + (white - s.skidLP) * 0.5f) * s.curSkid * 0.07f;
             }
 
-            float mono = engine + rain + wind + boost + crash + coin + power + ach + nearMiss + siren + skid;
+            float mono = engine
+                + (rain + wind + boost) * s.curVolAmb
+                + (crash + coin + power + ach + nearMiss + siren + skid) * s.curVolFx;
 
             // туннель: эхо
             if (delaySize > delayTap) {
@@ -387,7 +405,7 @@ namespace {
                 mono += echo * s.curTunnel * 0.7f;
             }
 
-            mono *= s.curMaster;
+            mono *= s.curMaster * s.curVolMaster;
 
             // м€гкое ограничение, чтобы не хрипело при сумме звуков
             const float v = std::tanh(mono);
@@ -508,6 +526,21 @@ void Audio::setSkid(float level) {
     }
 }
 
+void Audio::setVolumes(float master, float engine, float effects, float ambient) {
+    if (state_ != nullptr) {
+        // квадрат ближе к тому, как ухо воспринимает громкость: середина шкалы звучит именно Ђсреднеї
+        auto curve = [](float v) {
+            v = std::clamp(v, 0.0f, 1.0f);
+            return v * v;
+            };
+
+        state_->targetVolMaster = curve(master);
+        state_->targetVolEngine = curve(engine);
+        state_->targetVolFx = curve(effects);
+        state_->targetVolAmb = curve(ambient);
+    }
+}
+
 #else
 
 // заглушка: miniaudio.h не найден, звука нет
@@ -525,5 +558,6 @@ void Audio::playAchievement() {}
 void Audio::playNearMiss() {}
 void Audio::setSiren(float) {}
 void Audio::setSkid(float) {}
+void Audio::setVolumes(float, float, float, float) {}
 
 #endif

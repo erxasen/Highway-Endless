@@ -2658,7 +2658,7 @@ namespace {
         const float boostTarget = game.boosting() ? 1.0f : 0.0f;
         gBoostBlend += (boostTarget - gBoostBlend) * std::min(1.0f, dt * 6.0f);
 
-        gFovExtra = std::clamp((speed - 150.0f) / 200.0f, 0.0f, 1.0f) * 5.0f + gBoostBlend * 7.0f;
+        gFovExtra = game.speedFxScale() * (std::clamp((speed - 150.0f) / 200.0f, 0.0f, 1.0f) * 5.0f + gBoostBlend * 7.0f);
 
         gShake *= std::exp(-dt * 5.0f);
         gHitFlash *= std::exp(-dt * 4.0f);
@@ -2973,10 +2973,10 @@ namespace {
     }
 
     // линии скорости, расходящиеся от точки схода
-    void drawSpeedLines(float w, float h, float t, float speedKmh) {
-        const float intensity =
+    void drawSpeedLines(float w, float h, float t, float speedKmh, float fxScale) {
+        const float intensity = fxScale * (
             std::clamp((speedKmh - 170.0f) / 150.0f, 0.0f, 1.0f) * 0.30f +
-            gBoostBlend * 0.45f;
+            gBoostBlend * 0.45f);
 
         if (intensity < 0.01f) {
             return;
@@ -3369,7 +3369,7 @@ void Renderer::renderWorld(const Game& game)
 
     // тряска камеры: лёгкая при бусте, сильная при ударе
     const float tt = game.worldTime();
-    const float shakeAmp = 0.035f * gBoostBlend + 0.35f * gShake;
+    const float shakeAmp = game.shakeScale() * (0.035f * gBoostBlend + 0.35f * gShake);
     const float shakeX = std::sin(tt * 47.0f) * shakeAmp;
     const float shakeY = std::sin(tt * 61.0f + 1.3f) * shakeAmp * 0.7f;
 
@@ -3619,16 +3619,16 @@ void Renderer::renderHud(const Game& game)
         // линии скорости, дождь, молния и красная вспышка при ударе
         // (gRain уже равен 0 в туннеле, отдельной обработки не нужно)
         // затемнение по краям на большой скорости (эффект «туннельного зрения»)
-        const float speedVignette =
+        const float speedVignette = game.speedFxScale() * (
             0.10f +
             std::clamp((game.speedKmh() - 200.0f) / 250.0f, 0.0f, 1.0f) * 0.35f +
-            gBoostBlend * 0.20f;
+            gBoostBlend * 0.20f);
 
         if (speedVignette > 0.01f) {
             drawEdgeGlow(w, h, { 0.0f, 0.0f, 0.0f, speedVignette });
         }
 
-        drawSpeedLines(w, h, t, game.speedKmh());
+        drawSpeedLines(w, h, t, game.speedKmh(), game.speedFxScale());
 
         drawRain(w, h, t, game.speedKmh());
 
@@ -3949,7 +3949,7 @@ void Renderer::renderHud(const Game& game)
         if (paused) {
             drawTextCentered("PAUSED", centerX, h * 0.5f - 72.0f, 1.0f, { 1.0f, 0.82f, 0.22f, 1.0f });
             drawTextCentered("P RESUME", centerX, h * 0.5f + 34.0f, 0.60f, { 0.80f, 0.90f, 0.95f, 1.0f });
-            drawTextCentered("G GARAGE   H ACHIEVEMENTS", centerX, h * 0.5f + 84.0f, 0.30f, { 0.42f, 0.85f, 1.0f, 1.0f });
+            drawTextCentered("G GARAGE   H ACHIEVEMENTS   O SETTINGS", centerX, h * 0.5f + 84.0f, 0.30f, { 0.42f, 0.85f, 1.0f, 1.0f });
         }
         else {
             drawTextCentered(
@@ -3984,7 +3984,7 @@ void Renderer::renderHud(const Game& game)
                 drawTextCentered(xpLine, centerX, h * 0.5f + 84.0f, 0.26f, { 0.55f, 0.90f, 1.0f, 1.0f });
             }
 
-            drawTextCentered("G GARAGE   H ACHIEVEMENTS   T TRACK", centerX, h * 0.5f + 104.0f, 0.18f, { 0.55f, 0.70f, 0.80f, 1.0f });
+            drawTextCentered("G GARAGE   H ACHIEVEMENTS   T TRACK   O SETTINGS", centerX, h * 0.5f + 104.0f, 0.18f, { 0.55f, 0.70f, 0.80f, 1.0f });
         }
     }
 
@@ -4065,7 +4065,7 @@ void Renderer::renderHud(const Game& game)
         }
 
         drawTextCentered("ENTER START", centerX, my0 + 472.0f, 0.60f, { 0.80f, 0.95f, 0.85f, blink });
-        drawTextCentered("G GARAGE   H ACHIEVEMENTS", centerX, my0 + 530.0f, 0.30f, { 0.42f, 0.85f, 1.0f, 1.0f });
+        drawTextCentered("G GARAGE   H ACHIEVEMENTS   O SETTINGS", centerX, my0 + 530.0f, 0.30f, { 0.42f, 0.85f, 1.0f, 1.0f });
 
         drawTextCentered("A D LANES   W SPEED   S BRAKE   SHIFT BOOST", centerX, my0 + 580.0f, 0.22f, { 0.70f, 0.76f, 0.80f, 0.95f });
     }
@@ -4264,6 +4264,55 @@ void Renderer::renderHud(const Game& game)
 
             drawTextCentered("Q E CHOOSE CAR", icx, iy + 212.0f, 0.18f, { 0.80f, 0.90f, 0.95f, 1.0f });
         }
+    }
+
+    // ---- Настройки ----
+    if (game.state() == GameState::Settings) {
+        drawOverlayRect(0.0f, 0.0f, w, h, { 0.0f, 0.0f, 0.0f, 0.86f });
+
+        const float pw = 760.0f;
+        const float rowH = 62.0f;
+        const float ph = 110.0f + rowH * static_cast<float>(kSettingCount) + 80.0f;
+        const float px0 = centerX - pw * 0.5f;
+        const float py0 = h * 0.5f - ph * 0.5f;
+
+        drawPanel(px0, py0, pw, ph, { 0.015f, 0.022f, 0.030f, 0.96f }, { 0.42f, 0.85f, 1.0f, 0.90f });
+
+        drawTextCentered("SETTINGS", centerX, py0 + 18.0f, 0.70f, { 0.42f, 0.85f, 1.0f, 1.0f });
+        drawTextCentered("SOUND AND EFFECTS", centerX, py0 + 70.0f, 0.22f, { 0.65f, 0.72f, 0.78f, 1.0f });
+
+        for (int i = 0; i < kSettingCount; ++i) {
+            const float ry = py0 + 104.0f + static_cast<float>(i) * rowH;
+            const bool selected = game.settingsCursor() == i;
+            const int value = game.settingValue(i);
+
+            drawPanel(
+                px0 + 24.0f, ry, pw - 48.0f, rowH - 8.0f,
+                { 0.03f, 0.04f, 0.055f, 0.90f },
+                selected ? Color{ 1.0f, 0.78f, 0.20f, 0.95f } : Color{ 0.40f, 0.48f, 0.55f, 0.50f }
+            );
+
+            drawText(
+                Game::settingName(i), px0 + 44.0f, ry + 6.0f, 0.28f,
+                selected ? Color{ 1.0f, 0.83f, 0.22f, 1.0f } : Color{ 0.90f, 0.95f, 1.0f, 1.0f }
+            );
+            drawText(Game::settingInfo(i), px0 + 44.0f, ry + 33.0f, 0.15f, { 0.65f, 0.72f, 0.78f, 1.0f });
+
+            drawSegBar(
+                px0 + 400.0f, ry + 13.0f, 220.0f, 22.0f,
+                static_cast<float>(value) / static_cast<float>(kSettingMax),
+                kSettingMax,
+                { 0.22f, 0.78f, 1.0f, 1.0f },
+                { 0.08f, 0.11f, 0.14f, 0.95f }
+            );
+
+            drawText(
+                std::to_string(value * 10), px0 + 640.0f, ry + 12.0f, 0.30f,
+                selected ? Color{ 1.0f, 0.88f, 0.28f, 1.0f } : Color{ 0.80f, 0.90f, 0.95f, 1.0f }
+            );
+        }
+
+        drawTextCentered("UP DOWN SELECT   LEFT RIGHT CHANGE   O BACK", centerX, py0 + ph - 44.0f, 0.22f, { 0.80f, 0.90f, 0.95f, 1.0f });
     }
 
     // ---- Достижения ----

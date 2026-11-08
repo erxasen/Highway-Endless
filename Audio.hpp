@@ -38,6 +38,9 @@ public:
     // скрип шин: 0 нет, 1 есть; вызывать каждый кадр
     void setSkid(float level);
 
+    // громкости 0..1: общая, двигатель, эффекты (монеты, авария, сирена, шины), окружение (дождь, ветер, буст)
+    void setVolumes(float master, float engine, float effects, float ambient);
+
 private:
     AudioState* state_ = nullptr;
 };
