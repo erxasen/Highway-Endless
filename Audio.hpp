@@ -23,6 +23,21 @@ public:
     void playCrash();
     void playCoin();
 
+    // бонус с дороги: 0 щит, 1 магнит, 2 нитро (как PowerType в Game.hpp)
+    void playPower(int kind);
+
+    // коротка€ фанфара: достижение, побег от полиции, задание
+    void playAchievement();
+
+    // свист воздуха при опасном проезде р€дом с машиной
+    void playNearMiss();
+
+    // сирена полиции: 0 выключена, 1 сама€ громка€; вызывать каждый кадр
+    void setSiren(float level);
+
+    // скрип шин: 0 нет, 1 есть; вызывать каждый кадр
+    void setSkid(float level);
+
 private:
     AudioState* state_ = nullptr;
 };

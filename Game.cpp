@@ -29,7 +29,25 @@ namespace {
     constexpr float kRemoveZ = 24.0f;
 
     // Цена улучшения: из уровня N в уровень N+1 стоит kUpgradeCosts[N] монет
-    constexpr int kUpgradeCosts[kMaxUpgradeLevel] = { 10, 20, 35, 55, 80 };
+    constexpr int kUpgradeCosts[kMaxUpgradeLevel] = { 50, 100, 175, 275, 400 };
+
+    // Покраска: цена каждого цвета (BLUE бесплатный)
+    constexpr int kPaintCosts[kPaintCount] = { 0, 75, 75, 100, 125, 150 };
+
+    // Машины игрока: SPORT, COUPE, SEDAN, VAN
+    constexpr int kCarCosts[kCarCount] = { 0, 750, 600, 1500 };
+    constexpr int kCarLevels[kCarCount] = { 1, 2, 3, 5 };
+    constexpr float kCarSpeed[kCarCount] = { 1.00f, 1.04f, 0.96f, 0.92f };
+    constexpr float kCarGrip[kCarCount] = { 1.00f, 1.12f, 1.00f, 0.90f };
+    constexpr float kCarArmor[kCarCount] = { 1.00f, 1.05f, 0.80f, 0.62f };   // множитель урона
+
+    // Трассы: HIGHWAY, DESERT, SNOW
+    constexpr int kTrackLevels[kTrackCount] = { 1, 3, 6 };
+    constexpr float kTrackScoreMul[kTrackCount] = { 1.00f, 1.15f, 1.30f };
+
+    // Достижения: цель и награда монетами
+    constexpr int kAchTargets[kAchCount] = { 20000, 200, 5, 15, 5000, 300, 5, 3 };
+    constexpr int kAchRewards[kAchCount] = { 30, 30, 50, 40, 60, 40, 50, 80 };
 
     // Полицейская погоня (метры позади игрока)
     constexpr float kFirstChaseDelay = 35.0f;   // через сколько секунд первая погоня
@@ -50,6 +68,15 @@ namespace {
         {0.78f, 0.12f, 0.52f, 1.0f}
     } };
 
+    const std::array<Color, kPaintCount> kPaintColors = { {
+        {0.04f, 0.42f, 1.00f, 1.0f},   // BLUE
+        {0.92f, 0.10f, 0.12f, 1.0f},   // RED
+        {0.10f, 0.72f, 0.30f, 1.0f},   // GREEN
+        {0.95f, 0.70f, 0.10f, 1.0f},   // GOLD
+        {0.50f, 0.22f, 0.85f, 1.0f},   // PURPLE
+        {0.08f, 0.08f, 0.10f, 1.0f}    // BLACK
+    } };
+
     float approach(float current, float target, float speed, float dt) {
         const float t = std::clamp(speed * dt, 0.0f, 1.0f);
         return current + (target - current) * t;
@@ -57,6 +84,11 @@ namespace {
 
     bool overlaps(float aCenter, float aSize, float bCenter, float bSize) {
         return std::abs(aCenter - bCenter) < (aSize + bSize) * 0.5f;
+    }
+
+    // сколько опыта нужно, чтобы с уровня level перейти на следующий
+    int xpNeeded(int level) {
+        return 200 + 120 * (level - 1);
     }
 
     // Единственная формула погоды: её использует и Game (управление),
@@ -74,11 +106,16 @@ Game::Game()
     rng_(static_cast<unsigned int>(std::time(nullptr))),
     laneDist_(0, 2),
     colorDist_(0, static_cast<int>(kTrafficColors.size() - 1)),
-    typeDist_(0, 3)
+    typeDist_(0, 5)
 {
     loadGarage();
+    loadStats();
+    loadTop();
     audio_.start();
     reset();
+
+    // игра стартует с главного меню; Enter или R начинает забег
+    state_ = GameState::Menu;
 }
 
 Game::~Game()
@@ -155,12 +192,89 @@ bool Game::buyUpgrade(int id)
     return true;
 }
 
+bool Game::paintUnlocked(int id) const
+{
+    if (id < 0 || id >= kPaintCount)
+    {
+        return false;
+    }
+
+    return (paintMask_ & (1u << id)) != 0u;
+}
+
+int Game::paintCost(int id)
+{
+    if (id < 0 || id >= kPaintCount)
+    {
+        return 0;
+    }
+
+    return kPaintCosts[id];
+}
+
+const char* Game::paintName(int id)
+{
+    switch (id)
+    {
+    case 0: return "BLUE";
+    case 1: return "RED";
+    case 2: return "GREEN";
+    case 3: return "GOLD";
+    case 4: return "PURPLE";
+    case 5: return "BLACK";
+    default: return "";
+    }
+}
+
+Color Game::paintColor(int id)
+{
+    if (id < 0 || id >= kPaintCount)
+    {
+        return kPaintColors[0];
+    }
+
+    return kPaintColors[id];
+}
+
+bool Game::applyPaint(int id)
+{
+    if (id < 0 || id >= kPaintCount)
+    {
+        return false;
+    }
+
+    if (!paintUnlocked(id))
+    {
+        const int cost = kPaintCosts[id];
+
+        if (bank_ < cost)
+        {
+            return false;
+        }
+
+        bank_ -= cost;
+        paintMask_ |= (1u << id);
+    }
+
+    selectedPaint_ = id;
+
+    saveGarage();
+
+    return true;
+}
+
 void Game::loadGarage()
 {
     std::ifstream file("garage.txt");
 
     int bank = 0;
     int levels[kUpgradeCount] = { 0, 0, 0, 0 };
+    int paint = 0;
+    int mask = 1;
+    int xp = 0;
+    int carSel = 0;
+    int carBits = 1;
+    int trackSel = 0;
 
     if (file >> bank)
     {
@@ -168,6 +282,50 @@ void Game::loadGarage()
         {
             file >> levels[i];
         }
+
+        // старые файлы без покраски: остаётся BLUE
+        if (!(file >> paint >> mask))
+        {
+            paint = 0;
+            mask = 1;
+        }
+        else
+        {
+            // старые файлы без опыта: начинаем с нуля
+            file >> xp;
+
+            // старые файлы без машин: остаётся SPORT
+            if (!(file >> carSel >> carBits))
+            {
+                carSel = 0;
+                carBits = 1;
+            }
+            else
+            {
+                file >> trackSel;
+            }
+        }
+    }
+
+    totalXp_ = std::max(0, xp);
+
+    carMask_ = static_cast<unsigned int>(carBits) & ((1u << kCarCount) - 1u);
+    carMask_ |= 1u;
+
+    selectedCar_ = std::clamp(carSel, 0, kCarCount - 1);
+
+    if (!carUnlocked(selectedCar_))
+    {
+        selectedCar_ = 0;
+    }
+
+    carCursor_ = selectedCar_;
+
+    selectedTrack_ = std::clamp(trackSel, 0, kTrackCount - 1);
+
+    if (!trackUnlocked(selectedTrack_))
+    {
+        selectedTrack_ = 0;
     }
 
     bank_ = std::max(0, bank);
@@ -176,6 +334,18 @@ void Game::loadGarage()
     {
         upgrades_[i] = std::clamp(levels[i], 0, kMaxUpgradeLevel);
     }
+
+    paintMask_ = static_cast<unsigned int>(mask) & ((1u << kPaintCount) - 1u);
+    paintMask_ |= 1u;
+
+    selectedPaint_ = std::clamp(paint, 0, kPaintCount - 1);
+
+    if (!paintUnlocked(selectedPaint_))
+    {
+        selectedPaint_ = 0;
+    }
+
+    paintCursor_ = selectedPaint_;
 }
 
 void Game::saveGarage() const
@@ -188,6 +358,9 @@ void Game::saveGarage() const
     {
         file << ' ' << upgrades_[i];
     }
+
+    file << ' ' << selectedPaint_ << ' ' << paintMask_ << ' ' << totalXp_
+        << ' ' << selectedCar_ << ' ' << carMask_ << ' ' << selectedTrack_;
 }
 
 float Game::tunnelInside() const
@@ -206,7 +379,20 @@ float Game::tunnelInside() const
 
 float Game::rain() const
 {
-    return weatherRain(worldTime_) * (1.0f - tunnelInside());
+    float weather = weatherRain(worldTime_);
+
+    if (selectedTrack_ == 1)
+    {
+        // пустыня: дождя нет
+        weather = 0.0f;
+    }
+    else if (selectedTrack_ == 2)
+    {
+        // снежная трасса: всегда немного скользко
+        weather = std::max(weather, 0.35f);
+    }
+
+    return weather * (1.0f - tunnelInside());
 }
 
 void Game::reset()
@@ -232,6 +418,9 @@ void Game::reset()
     worldTime_ = 0.0f;
     roadOffset_ = 0.0f;
     distance_ = 0.0f;
+    nextMilestone_ = 2000.0f;
+    milestoneMeters_ = 0;
+    milestoneTimer_ = 0.0f;
 
     scoreValue_ = 0.0f;
     score_ = 0;
@@ -247,6 +436,28 @@ void Game::reset()
 
     traffic_.clear();
     pickups_.clear();
+    roadBlocks_.clear();
+    roadBlockTimer_ = 18.0f;
+    oilSlicks_.clear();
+    oilSpawnTimer_ = 25.0f;
+    oilTimer_ = 0.0f;
+
+    powerUps_.clear();
+    powerSpawnTimer_ = 14.0f;
+    shieldTimer_ = 0.0f;
+    magnetTimer_ = 0.0f;
+    powerPopupTimer_ = 0.0f;
+
+    // новое задание на каждый забег
+    {
+        std::uniform_int_distribution<int> missionDist(0, 3);
+        missionType_ = missionDist(rng_);
+    }
+
+    missionDone_ = false;
+    missionPopupTimer_ = 0.0f;
+    maxCombo_ = 0;
+    escapes_ = 0;
 
     chaseState_ = ChaseState::Idle;
     chaseTimer_ = kFirstChaseDelay;
@@ -254,6 +465,11 @@ void Game::reset()
     policeX_ = playerX_;
     escapeTimer_ = 0.0f;
     busted_ = false;
+    runRecorded_ = false;
+    lastRunXp_ = 0;
+    lastLevelUps_ = 0;
+    runMaxSpeed_ = 0.0f;
+    achPopupTimer_ = 0.0f;
 }
 
 float Game::laneCenter(int lane)
@@ -288,18 +504,24 @@ void Game::handleInput(GLFWwindow* window, float dt)
         }
     }
 
+    // R в гараже не сбрасывает забег, чтобы не нажать случайно
     if (pressedOnce(window, GLFW_KEY_R, restartWasDown_))
     {
-        reset();
+        if (state_ != GameState::Garage && state_ != GameState::Achievements)
+        {
+            reset();
+        }
     }
 
     // гараж: G открывает на паузе и после аварии, повторно закрывает
     if (pressedOnce(window, GLFW_KEY_G, garageWasDown_))
     {
-        if (state_ == GameState::Paused || state_ == GameState::GameOver)
+        if (state_ == GameState::Paused || state_ == GameState::GameOver || state_ == GameState::Menu)
         {
             garageReturn_ = state_;
             state_ = GameState::Garage;
+            paintCursor_ = selectedPaint_;
+            carCursor_ = selectedCar_;
         }
         else if (state_ == GameState::Garage)
         {
@@ -319,6 +541,94 @@ void Game::handleInput(GLFWwindow* window, float dt)
         if (pressed && state_ == GameState::Garage)
         {
             buyUpgrade(i);
+        }
+    }
+
+    // трасса: T переключает на следующую открытую (в меню и после аварии)
+    if (pressedOnce(window, GLFW_KEY_T, trackKeyWasDown_))
+    {
+        if (state_ == GameState::Menu || state_ == GameState::GameOver)
+        {
+            for (int step = 1; step <= kTrackCount; ++step)
+            {
+                const int next = (selectedTrack_ + step) % kTrackCount;
+
+                if (trackUnlocked(next))
+                {
+                    selectedTrack_ = next;
+                    break;
+                }
+            }
+
+            saveGarage();
+        }
+    }
+
+    // достижения: H открывает на паузе, после аварии и в главном меню, повторно закрывает
+    if (pressedOnce(window, GLFW_KEY_H, achKeyWasDown_))
+    {
+        if (state_ == GameState::Paused || state_ == GameState::GameOver || state_ == GameState::Menu)
+        {
+            achReturn_ = state_;
+            state_ = GameState::Achievements;
+        }
+        else if (state_ == GameState::Achievements)
+        {
+            state_ = achReturn_;
+        }
+    }
+
+    // выбор машины в гараже: Q и E листают, пробел покупает или выбирает
+    {
+        const bool carPrev = pressedOnce(window, GLFW_KEY_Q, carPrevWasDown_);
+        const bool carNext = pressedOnce(window, GLFW_KEY_E, carNextWasDown_);
+        const bool carApply = pressedOnce(window, GLFW_KEY_SPACE, carApplyWasDown_);
+
+        if (state_ == GameState::Garage)
+        {
+            if (carPrev)
+            {
+                carCursor_ = (carCursor_ + kCarCount - 1) % kCarCount;
+            }
+
+            if (carNext)
+            {
+                carCursor_ = (carCursor_ + 1) % kCarCount;
+            }
+
+            if (carApply)
+            {
+                applyCar(carCursor_);
+            }
+        }
+    }
+
+    // покраска: стрелки двигают курсор, Enter выбирает или покупает цвет
+    {
+        const bool paintLeft = pressedOnce(window, GLFW_KEY_LEFT, paintLeftWasDown_);
+        const bool paintRight = pressedOnce(window, GLFW_KEY_RIGHT, paintRightWasDown_);
+        const bool paintApply = pressedOnce(window, GLFW_KEY_ENTER, paintApplyWasDown_);
+
+        if (state_ == GameState::Garage)
+        {
+            if (paintLeft)
+            {
+                paintCursor_ = (paintCursor_ + kPaintCount - 1) % kPaintCount;
+            }
+
+            if (paintRight)
+            {
+                paintCursor_ = (paintCursor_ + 1) % kPaintCount;
+            }
+
+            if (paintApply)
+            {
+                applyPaint(paintCursor_);
+            }
+        }
+        else if (state_ == GameState::Menu && paintApply)
+        {
+            reset();
         }
     }
 
@@ -383,10 +693,18 @@ void Game::changeLane(int direction)
 
 void Game::update(float dt)
 {
+    // забег закончился: один раз заносим результат в таблицу
+    if (state_ == GameState::GameOver && !runRecorded_)
+    {
+        recordRun();
+    }
+
     if (state_ != GameState::Running)
     {
         // пауза или авария: звук плавно затихает
         audio_.update(speedKmh(), false, 0.0f, 0.0f, false);
+        audio_.setSiren(0.0f);
+        audio_.setSkid(0.0f);
         return;
     }
 
@@ -425,7 +743,12 @@ void Game::update(float dt)
     const float tiresLevel = static_cast<float>(upgrades_[1]);
 
     // хорошие шины уменьшают потерю сцепления на мокрой дороге
-    const float wet = rainLevel * (1.0f - 0.15f * tiresLevel);
+    // на масляном пятне дорога как в сильный ливень, плюс машину водит из стороны в сторону
+    const float slick = std::max(rainLevel, oilTimer_ > 0.0f ? 1.0f : 0.0f);
+
+    const float wet = slick * (1.0f - 0.15f * tiresLevel);
+
+    const float oilWobble = oilTimer_ > 0.0f ? std::sin(worldTime_ * 8.0f) * 5.0f : 0.0f;
 
     float targetSpeed = targetCruise + throttle_ * (12.0f + engineLevel) + boostExtra;
 
@@ -433,7 +756,7 @@ void Game::update(float dt)
     targetSpeed -= brake_ * 22.0f * (1.0f - 0.4f * wet);
 
     const float currentMaxSpeed =
-        maxSpeed_ + (boosting_ ? 15.0f : 0.0f) + 1.5f * engineLevel;
+        (maxSpeed_ + (boosting_ ? 15.0f : 0.0f) + 1.5f * engineLevel) * carSpeed(selectedCar_);
 
     targetSpeed = std::clamp(targetSpeed, 14.0f, currentMaxSpeed);
 
@@ -449,13 +772,13 @@ void Game::update(float dt)
     const float oldX = playerX_;
 
     // на мокрой дороге машина медленнее перестраивается
-    playerX_ = approach(playerX_, targetX, 8.5f * (1.0f + 0.06f * tiresLevel) * (1.0f - 0.45f * wet), dt);
+    playerX_ = approach(playerX_, targetX, 8.5f * (1.0f + 0.06f * tiresLevel) * carGrip(selectedCar_) * (1.0f - 0.45f * wet), dt);
 
     lateralVelocity_ = (playerX_ - oldX) / std::max(dt, 0.0001f);
 
     playerYaw_ = approach(
         playerYaw_,
-        std::clamp(-lateralVelocity_ * 1.35f * (1.0f + 0.8f * wet), -12.0f, 12.0f),
+        std::clamp(-lateralVelocity_ * 1.35f * (1.0f + 0.8f * wet) + oilWobble, -12.0f, 12.0f),
         8.0f,
         dt
     );
@@ -463,6 +786,22 @@ void Game::update(float dt)
     roadOffset_ += speed_ * dt;
 
     distance_ += speed_ * dt;
+
+    // бонус монетами за каждые 2000 м пути
+    if (milestoneTimer_ > 0.0f)
+    {
+        milestoneTimer_ -= dt;
+    }
+
+    if (distance_ >= nextMilestone_)
+    {
+        milestoneMeters_ = static_cast<int>(nextMilestone_);
+        milestoneTimer_ = 2.5f;
+        nextMilestone_ += 2000.0f;
+
+        bank_ += 8;
+        audio_.playCoin();
+    }
 
     audio_.update(speedKmh(), boosting_, rainLevel, tunnelInside(), true);
 
@@ -473,7 +812,8 @@ void Game::update(float dt)
 
     scoreValue_ +=
         speed_ * dt *
-        (7.2f + static_cast<float>(combo_) * 0.55f);
+        (7.2f + static_cast<float>(combo_) * 0.55f) *
+        trackScoreMul(selectedTrack_);
 
     score_ = static_cast<int>(scoreValue_) + coins_ * 120;
 
@@ -499,11 +839,65 @@ void Game::update(float dt)
 
     updatePickups(dt);
 
+    updatePowerUps(dt);
+
     checkCollisions();
 
     if (state_ == GameState::Running)
     {
+        updateRoadBlocks(dt);
+    }
+
+    if (state_ == GameState::Running)
+    {
+        updateOilSlicks(dt);
+    }
+
+    if (state_ == GameState::Running)
+    {
         updateChase(dt);
+    }
+
+    if (state_ == GameState::Running)
+    {
+        updateMission(dt);
+    }
+
+    runMaxSpeed_ = std::max(runMaxSpeed_, speedKmh());
+
+    if (achPopupTimer_ > 0.0f)
+    {
+        achPopupTimer_ -= dt;
+    }
+
+    checkAchievements();
+
+    // сирена полиции: громче, когда полиция ближе
+    {
+        float siren = 0.0f;
+
+        if (state_ == GameState::Running)
+        {
+            if (chaseState_ == ChaseState::Warning)
+            {
+                siren = 0.4f;
+            }
+            else if (chaseState_ == ChaseState::Chasing)
+            {
+                siren = std::clamp(1.1f - policeGap_ / kChaseEscapeGap, 0.25f, 1.0f);
+            }
+        }
+
+        audio_.setSiren(siren);
+    }
+
+    // скрип шин: торможение на скорости, масляное пятно, резкая смена полосы
+    {
+        const bool skidding =
+            state_ == GameState::Running &&
+            ((brake_ > 0.5f && speedKmh() > 120.0f) || oilTimer_ > 0.0f || std::abs(playerYaw_) > 7.5f);
+
+        audio_.setSkid(skidding ? 1.0f : 0.0f);
     }
 }
 
@@ -564,9 +958,11 @@ void Game::updateChase(float dt)
             chaseTimer_ = delayDist(rng_);
 
             escapeTimer_ = 3.0f;
+            ++escapes_;
             scoreValue_ += kEscapeBonus;
             bank_ += 10;
             boost_ = std::min(100.0f, boost_ + 40.0f);
+            audio_.playAchievement();
         }
         else if (policeGap_ <= 0.0f)
         {
@@ -634,9 +1030,13 @@ void Game::spawnTraffic()
 
     vehicle.type = static_cast<TrafficType>(type);
 
-    std::uniform_real_distribution<float> speedOffsetDist(-4.0f, 8.0f);
+    // relativeSpeed отрицательный: машина едет вперёд со своей скоростью
+    // (в среднем 6-11 м/с). Положительное значение означало бы езду задним
+    // ходом относительно земли. Минимальная скорость игрока 14 м/с, а самая
+    // быстрая машина едет не быстрее 13 м/с, поэтому машины не уезжают вперёд насовсем.
+    std::uniform_real_distribution<float> forwardSpeedDist(6.0f, 11.0f);
 
-    vehicle.relativeSpeed = speedOffsetDist(rng_);
+    vehicle.relativeSpeed = -forwardSpeedDist(rng_);
 
     switch (vehicle.type)
     {
@@ -650,21 +1050,35 @@ void Game::spawnTraffic()
         vehicle.width = 1.62f;
         vehicle.length = 3.7f;
         vehicle.height = 0.88f;
-        vehicle.relativeSpeed += 4.0f;
+        vehicle.relativeSpeed -= 2.0f;   // спорткар едет быстрее остальных
         break;
 
     case TrafficType::Truck:
         vehicle.width = 2.2f;
         vehicle.length = 6.1f;
         vehicle.height = 2.25f;
-        vehicle.relativeSpeed -= 4.0f;
+        vehicle.relativeSpeed += 3.0f;   // грузовик медленнее
         break;
 
     case TrafficType::Van:
         vehicle.width = 1.9f;
         vehicle.length = 4.6f;
         vehicle.height = 1.8f;
-        vehicle.relativeSpeed -= 1.0f;
+        vehicle.relativeSpeed += 1.0f;
+        break;
+
+    case TrafficType::Bus:
+        vehicle.width = 2.3f;
+        vehicle.length = 8.0f;
+        vehicle.height = 2.6f;
+        vehicle.relativeSpeed += 4.0f;   // автобус самый медленный
+        break;
+
+    case TrafficType::Coupe:
+        vehicle.width = 1.58f;
+        vehicle.length = 3.55f;
+        vehicle.height = 0.94f;
+        vehicle.relativeSpeed -= 1.0f;   // купе чуть быстрее седана
         break;
     }
 
@@ -745,9 +1159,13 @@ void Game::updatePickups(float dt)
             // улучшение «магнит» расширяет зону подбора монет
             const float magnet = static_cast<float>(upgrades_[3]);
 
-            const bool xHit = std::abs(playerX_ - coin.x) < 0.95f + 0.35f * magnet;
+            // бонус «магнит» с дороги временно захватывает и соседние полосы
+            const float magnetBonusX = magnetTimer_ > 0.0f ? 2.6f : 0.0f;
+            const float magnetBonusZ = magnetTimer_ > 0.0f ? 1.5f : 0.0f;
 
-            const bool zHit = std::abs(playerZ_ - coin.z) < 1.5f + 0.25f * magnet;
+            const bool xHit = std::abs(playerX_ - coin.x) < 0.95f + 0.35f * magnet + magnetBonusX;
+
+            const bool zHit = std::abs(playerZ_ - coin.z) < 1.5f + 0.25f * magnet + magnetBonusZ;
 
             if (xHit && zHit)
             {
@@ -811,6 +1229,8 @@ void Game::awardNearMiss(TrafficVehicle& vehicle)
 
         boost_ = std::min(100.0f, boost_ + 8.0f);
 
+        audio_.playNearMiss();
+
         scoreValue_ +=
             180.0f + static_cast<float>(combo_) * 40.0f;
     }
@@ -826,10 +1246,10 @@ void Game::checkCollisions()
     for (auto& vehicle : traffic_)
     {
         const float widthFactor =
-            vehicle.type == TrafficType::Truck ? 0.76f : 0.72f;
+            (vehicle.type == TrafficType::Truck || vehicle.type == TrafficType::Bus) ? 0.76f : 0.72f;
 
         const float lengthFactor =
-            vehicle.type == TrafficType::Truck ? 0.78f : 0.70f;
+            (vehicle.type == TrafficType::Truck || vehicle.type == TrafficType::Bus) ? 0.78f : 0.70f;
 
         const bool sameLaneSpace =
             overlaps(
@@ -849,6 +1269,20 @@ void Game::checkCollisions()
 
         if (sameLaneSpace && sameDepthSpace)
         {
+            // щит гасит удар целиком: урона и потери скорости нет
+            if (shieldTimer_ > 0.0f)
+            {
+                shieldTimer_ = 0.0f;
+
+                invulnerabilityTimer_ = 1.15f;
+
+                vehicle.z += 7.0f;
+
+                audio_.playCrash();
+
+                break;
+            }
+
             float damage = 34.0f;
 
             if (vehicle.type == TrafficType::Truck)
@@ -859,11 +1293,18 @@ void Game::checkCollisions()
             {
                 damage = 42.0f;
             }
+            else if (vehicle.type == TrafficType::Bus)
+            {
+                damage = 50.0f;
+            }
 
             audio_.playCrash();
 
             // улучшение «броня»: до половины урона на пятом уровне
             damage *= 1.0f - 0.10f * static_cast<float>(upgrades_[2]);
+
+            // прочность кузова выбранной машины
+            damage *= carArmor(selectedCar_);
 
             health_ = std::max(0.0f, health_ - damage);
 
@@ -892,6 +1333,723 @@ void Game::checkCollisions()
 
             break;
         }
+    }
+}
+
+void Game::updateRoadBlocks(float dt)
+{
+    // новые дорожные работы: раз в 10-18 секунд, одна полоса из трёх
+    roadBlockTimer_ -= dt;
+
+    if (roadBlockTimer_ <= 0.0f)
+    {
+        std::uniform_real_distribution<float> delayDist(10.0f, 18.0f);
+        roadBlockTimer_ = delayDist(rng_);
+
+        int lane = laneDist_(rng_);
+
+        // не ставим барьер в полосу, где в дальней зоне уже едет машина
+        for (int attempt = 0; attempt < 3; ++attempt)
+        {
+            bool busy = false;
+
+            for (const auto& vehicle : traffic_)
+            {
+                if (vehicle.lane == lane && vehicle.z < -90.0f)
+                {
+                    busy = true;
+                    break;
+                }
+            }
+
+            if (!busy)
+            {
+                break;
+            }
+
+            lane = (lane + 1) % 3;
+        }
+
+        RoadBlock block;
+
+        block.lane = lane;
+        block.x = laneCenter(lane);
+        block.z = kSpawnZ;
+
+        roadBlocks_.push_back(block);
+    }
+
+    for (auto& block : roadBlocks_)
+    {
+        block.z += speed_ * dt;
+
+        if (!block.scored && block.z > playerZ_ + 4.0f)
+        {
+            block.scored = true;
+
+            if (!block.hit)
+            {
+                scoreValue_ += 80.0f;
+            }
+        }
+
+        if (block.hit || invulnerabilityTimer_ > 0.0f)
+        {
+            continue;
+        }
+
+        const bool sameLaneSpace =
+            overlaps(playerX_, kPlayerWidth * 0.76f, block.x, 2.6f);
+
+        const bool sameDepthSpace =
+            overlaps(playerZ_, kPlayerLength * 0.72f, block.z, 1.4f);
+
+        if (sameLaneSpace && sameDepthSpace)
+        {
+            block.hit = true;
+
+            audio_.playCrash();
+
+            if (shieldTimer_ > 0.0f)
+            {
+                shieldTimer_ = 0.0f;
+
+                invulnerabilityTimer_ = 1.15f;
+
+                continue;
+            }
+
+            // броня снижает урон так же, как при аварии с машиной
+            const float damage = 28.0f * (1.0f - 0.10f * static_cast<float>(upgrades_[2])) * carArmor(selectedCar_);
+
+            health_ = std::max(0.0f, health_ - damage);
+
+            speed_ *= 0.54f;
+
+            boost_ = std::max(0.0f, boost_ - 28.0f);
+
+            combo_ = 0;
+
+            comboTimer_ = 0.0f;
+
+            invulnerabilityTimer_ = 1.15f;
+
+            if (health_ <= 0.0f)
+            {
+                state_ = GameState::GameOver;
+
+                updateHighScore();
+
+                saveHighScore(highScore_);
+
+                saveGarage();
+
+                break;
+            }
+        }
+    }
+
+    roadBlocks_.erase(
+        std::remove_if(
+            roadBlocks_.begin(),
+            roadBlocks_.end(),
+            [](const RoadBlock& block)
+            {
+                return block.z > kRemoveZ;
+            }
+        ),
+        roadBlocks_.end()
+    );
+}
+
+void Game::updateOilSlicks(float dt)
+{
+    if (oilTimer_ > 0.0f)
+    {
+        oilTimer_ -= dt;
+    }
+
+    // новое пятно раз в 12-22 секунды, в случайной полосе
+    oilSpawnTimer_ -= dt;
+
+    if (oilSpawnTimer_ <= 0.0f)
+    {
+        std::uniform_real_distribution<float> delayDist(12.0f, 22.0f);
+        oilSpawnTimer_ = delayDist(rng_);
+
+        OilSlick slick;
+
+        slick.lane = laneDist_(rng_);
+        slick.x = laneCenter(slick.lane);
+        slick.z = kSpawnZ;
+
+        oilSlicks_.push_back(slick);
+    }
+
+    for (auto& slick : oilSlicks_)
+    {
+        slick.z += speed_ * dt;
+
+        const bool sameLaneSpace =
+            overlaps(playerX_, kPlayerWidth * 0.76f, slick.x, 2.4f);
+
+        const bool sameDepthSpace =
+            overlaps(playerZ_, kPlayerLength * 0.72f, slick.z, 5.0f);
+
+        if (sameLaneSpace && sameDepthSpace)
+        {
+            // пока колёса на пятне, занос держится и ещё немного после него
+            oilTimer_ = 1.4f;
+        }
+    }
+
+    oilSlicks_.erase(
+        std::remove_if(
+            oilSlicks_.begin(),
+            oilSlicks_.end(),
+            [](const OilSlick& slick)
+            {
+                return slick.z > kRemoveZ;
+            }
+        ),
+        oilSlicks_.end()
+    );
+}
+
+void Game::updatePowerUps(float dt)
+{
+    if (shieldTimer_ > 0.0f)
+    {
+        shieldTimer_ = std::max(0.0f, shieldTimer_ - dt);
+    }
+
+    if (magnetTimer_ > 0.0f)
+    {
+        magnetTimer_ = std::max(0.0f, magnetTimer_ - dt);
+    }
+
+    if (powerPopupTimer_ > 0.0f)
+    {
+        powerPopupTimer_ -= dt;
+    }
+
+    // новый бонус раз в 14-24 секунды, в случайной полосе
+    powerSpawnTimer_ -= dt;
+
+    if (powerSpawnTimer_ <= 0.0f)
+    {
+        std::uniform_real_distribution<float> delayDist(14.0f, 24.0f);
+        std::uniform_int_distribution<int> kindDist(0, 2);
+
+        powerSpawnTimer_ = delayDist(rng_);
+
+        PowerUp power;
+
+        power.lane = laneDist_(rng_);
+        power.x = laneCenter(power.lane);
+        power.z = kSpawnZ;
+        power.type = static_cast<PowerType>(kindDist(rng_));
+
+        powerUps_.push_back(power);
+    }
+
+    for (auto& power : powerUps_)
+    {
+        power.z += speed_ * dt;
+
+        power.phase += dt * 3.0f;
+
+        if (power.collected)
+        {
+            continue;
+        }
+
+        const bool xHit = std::abs(playerX_ - power.x) < 1.15f;
+
+        const bool zHit = std::abs(playerZ_ - power.z) < 1.8f;
+
+        if (xHit && zHit)
+        {
+            power.collected = true;
+
+            switch (power.type)
+            {
+            case PowerType::Shield:
+                shieldTimer_ = 12.0f;
+                break;
+
+            case PowerType::Magnet:
+                magnetTimer_ = 10.0f;
+                break;
+
+            case PowerType::Nitro:
+                boost_ = 100.0f;
+                break;
+            }
+
+            powerPopupType_ = power.type;
+            powerPopupTimer_ = 2.0f;
+
+            scoreValue_ += 150.0f;
+
+            audio_.playPower(static_cast<int>(power.type));
+        }
+    }
+
+    powerUps_.erase(
+        std::remove_if(
+            powerUps_.begin(),
+            powerUps_.end(),
+            [](const PowerUp& power)
+            {
+                return power.collected || power.z > kRemoveZ;
+            }
+        ),
+        powerUps_.end()
+    );
+}
+
+const char* Game::missionName() const
+{
+    switch (missionType_)
+    {
+    case 0: return "COLLECT 15 COINS";
+    case 1: return "REACH COMBO X10";
+    case 2: return "ESCAPE POLICE";
+    case 3: return "DRIVE 3000 M";
+    default: return "";
+    }
+}
+
+int Game::missionProgress() const
+{
+    switch (missionType_)
+    {
+    case 0: return coins_;
+    case 1: return maxCombo_;
+    case 2: return escapes_;
+    case 3: return static_cast<int>(distance_);
+    default: return 0;
+    }
+}
+
+int Game::missionTarget() const
+{
+    switch (missionType_)
+    {
+    case 0: return 15;
+    case 1: return 10;
+    case 2: return 1;
+    case 3: return 3000;
+    default: return 1;
+    }
+}
+
+void Game::updateMission(float dt)
+{
+    maxCombo_ = std::max(maxCombo_, combo_);
+
+    if (missionPopupTimer_ > 0.0f)
+    {
+        missionPopupTimer_ -= dt;
+    }
+
+    if (!missionDone_ && missionProgress() >= missionTarget())
+    {
+        missionDone_ = true;
+        missionPopupTimer_ = 3.0f;
+
+        bank_ += 15;
+        audio_.playAchievement();
+    }
+}
+
+bool Game::trackUnlocked(int id) const
+{
+    if (id < 0 || id >= kTrackCount)
+    {
+        return false;
+    }
+
+    return level() >= kTrackLevels[id];
+}
+
+const char* Game::trackName(int id)
+{
+    switch (id)
+    {
+    case 0: return "HIGHWAY";
+    case 1: return "DESERT";
+    case 2: return "SNOW";
+    default: return "";
+    }
+}
+
+int Game::trackLevelReq(int id)
+{
+    return (id >= 0 && id < kTrackCount) ? kTrackLevels[id] : 1;
+}
+
+float Game::trackScoreMul(int id)
+{
+    return (id >= 0 && id < kTrackCount) ? kTrackScoreMul[id] : 1.0f;
+}
+
+bool Game::carUnlocked(int id) const
+{
+    if (id < 0 || id >= kCarCount)
+    {
+        return false;
+    }
+
+    return (carMask_ & (1u << id)) != 0u;
+}
+
+const char* Game::carName(int id)
+{
+    switch (id)
+    {
+    case 0: return "SPORT";
+    case 1: return "COUPE";
+    case 2: return "SEDAN";
+    case 3: return "VAN";
+    default: return "";
+    }
+}
+
+int Game::carCost(int id)
+{
+    return (id >= 0 && id < kCarCount) ? kCarCosts[id] : 0;
+}
+
+int Game::carLevelReq(int id)
+{
+    return (id >= 0 && id < kCarCount) ? kCarLevels[id] : 1;
+}
+
+float Game::carSpeed(int id)
+{
+    return (id >= 0 && id < kCarCount) ? kCarSpeed[id] : 1.0f;
+}
+
+float Game::carGrip(int id)
+{
+    return (id >= 0 && id < kCarCount) ? kCarGrip[id] : 1.0f;
+}
+
+float Game::carArmor(int id)
+{
+    return (id >= 0 && id < kCarCount) ? kCarArmor[id] : 1.0f;
+}
+
+// выбрать машину; закрытую покупает, если хватает уровня и монет
+bool Game::applyCar(int id)
+{
+    if (id < 0 || id >= kCarCount)
+    {
+        return false;
+    }
+
+    if (!carUnlocked(id))
+    {
+        if (level() < kCarLevels[id] || bank_ < kCarCosts[id])
+        {
+            return false;
+        }
+
+        bank_ -= kCarCosts[id];
+        carMask_ |= (1u << id);
+    }
+
+    selectedCar_ = id;
+
+    saveGarage();
+
+    checkAchievements();
+
+    return true;
+}
+
+const char* Game::achName(int id)
+{
+    switch (id)
+    {
+    case 0: return "ROAD TRIP";
+    case 1: return "COIN HUNTER";
+    case 2: return "ESCAPE ARTIST";
+    case 3: return "COMBO KING";
+    case 4: return "SURVIVOR";
+    case 5: return "SPEED DEMON";
+    case 6: return "RISING STAR";
+    case 7: return "COLLECTOR";
+    default: return "";
+    }
+}
+
+const char* Game::achInfo(int id)
+{
+    switch (id)
+    {
+    case 0: return "DRIVE 20 KM IN TOTAL";
+    case 1: return "COLLECT 200 COINS IN TOTAL";
+    case 2: return "ESCAPE POLICE 5 TIMES";
+    case 3: return "REACH COMBO X15";
+    case 4: return "DRIVE 5 KM IN ONE RUN";
+    case 5: return "REACH 300 KM H";
+    case 6: return "REACH LEVEL 5";
+    case 7: return "OWN 3 CARS";
+    default: return "";
+    }
+}
+
+int Game::achTarget(int id)
+{
+    return (id >= 0 && id < kAchCount) ? kAchTargets[id] : 1;
+}
+
+int Game::achReward(int id)
+{
+    return (id >= 0 && id < kAchCount) ? kAchRewards[id] : 0;
+}
+
+// прогресс включает текущий забег, пока он ещё не записан в статистику
+int Game::achProgress(int id) const
+{
+    const bool live = !runRecorded_;
+
+    switch (id)
+    {
+    case 0: return totalDistance_ + (live ? static_cast<int>(distance_) : 0);
+    case 1: return totalCoins_ + (live ? coins_ : 0);
+    case 2: return totalEscapes_ + (live ? escapes_ : 0);
+    case 3: return std::max(bestCombo_, live ? maxCombo_ : 0);
+    case 4: return std::max(bestRunDist_, live ? static_cast<int>(distance_) : 0);
+    case 5: return std::max(bestSpeed_, live ? static_cast<int>(runMaxSpeed_) : 0);
+    case 6: return level();
+    case 7:
+    {
+        int owned = 0;
+
+        for (int i = 0; i < kCarCount; ++i)
+        {
+            if (carUnlocked(i))
+            {
+                ++owned;
+            }
+        }
+
+        return owned;
+    }
+    default: return 0;
+    }
+}
+
+bool Game::achUnlocked(int id) const
+{
+    if (id < 0 || id >= kAchCount)
+    {
+        return false;
+    }
+
+    return (achMask_ & (1u << id)) != 0u;
+}
+
+int Game::achUnlockedCount() const
+{
+    int count = 0;
+
+    for (int i = 0; i < kAchCount; ++i)
+    {
+        if (achUnlocked(i))
+        {
+            ++count;
+        }
+    }
+
+    return count;
+}
+
+void Game::checkAchievements()
+{
+    for (int i = 0; i < kAchCount; ++i)
+    {
+        if (achUnlocked(i) || achProgress(i) < kAchTargets[i])
+        {
+            continue;
+        }
+
+        achMask_ |= (1u << i);
+
+        bank_ += kAchRewards[i];
+
+        achPopupId_ = i;
+        achPopupTimer_ = 3.5f;
+
+        audio_.playAchievement();
+
+        saveStats();
+        saveGarage();
+    }
+}
+
+void Game::loadStats()
+{
+    std::ifstream file("stats.txt");
+
+    int dist = 0;
+    int coins = 0;
+    int escapes = 0;
+    int combo = 0;
+    int runDist = 0;
+    int speed = 0;
+    int mask = 0;
+
+    file >> dist >> coins >> escapes >> combo >> runDist >> speed >> mask;
+
+    totalDistance_ = std::max(0, dist);
+    totalCoins_ = std::max(0, coins);
+    totalEscapes_ = std::max(0, escapes);
+    bestCombo_ = std::max(0, combo);
+    bestRunDist_ = std::max(0, runDist);
+    bestSpeed_ = std::max(0, speed);
+
+    achMask_ = static_cast<unsigned int>(std::max(0, mask)) & ((1u << kAchCount) - 1u);
+}
+
+void Game::saveStats() const
+{
+    std::ofstream file("stats.txt", std::ios::trunc);
+
+    file << totalDistance_ << ' ' << totalCoins_ << ' ' << totalEscapes_ << ' '
+        << bestCombo_ << ' ' << bestRunDist_ << ' ' << bestSpeed_ << ' ' << achMask_;
+}
+
+void Game::levelState(int& lvl, int& rem) const
+{
+    lvl = 1;
+    rem = std::max(0, totalXp_);
+
+    while (rem >= xpNeeded(lvl))
+    {
+        rem -= xpNeeded(lvl);
+        ++lvl;
+    }
+}
+
+int Game::level() const
+{
+    int lvl = 1;
+    int rem = 0;
+
+    levelState(lvl, rem);
+
+    return lvl;
+}
+
+int Game::xpInLevel() const
+{
+    int lvl = 1;
+    int rem = 0;
+
+    levelState(lvl, rem);
+
+    return rem;
+}
+
+int Game::xpForNextLevel() const
+{
+    return xpNeeded(level());
+}
+
+void Game::recordRun()
+{
+    runRecorded_ = true;
+
+    // опыт за забег: очки, монеты, побеги от полиции и задание
+    {
+        // статистика за всё время
+        totalDistance_ += static_cast<int>(distance_);
+        totalCoins_ += coins_;
+        totalEscapes_ += escapes_;
+        bestCombo_ = std::max(bestCombo_, maxCombo_);
+        bestRunDist_ = std::max(bestRunDist_, static_cast<int>(distance_));
+        bestSpeed_ = std::max(bestSpeed_, static_cast<int>(runMaxSpeed_));
+
+        const int before = level();
+
+        lastRunXp_ = score_ / 25 + coins_ * 3 + escapes_ * 40 + (missionDone_ ? 60 : 0);
+
+        totalXp_ += lastRunXp_;
+
+        const int after = level();
+
+        lastLevelUps_ = after - before;
+
+        // награда за каждый новый уровень: 10 монет за номер уровня
+        for (int l = before + 1; l <= after; ++l)
+        {
+            bank_ += 10 * l;
+        }
+
+        checkAchievements();
+
+        saveStats();
+
+        saveGarage();
+    }
+
+    if (score_ <= 0)
+    {
+        return;
+    }
+
+    int best[kTopCount + 1];
+
+    for (int i = 0; i < kTopCount; ++i)
+    {
+        best[i] = topScores_[i];
+    }
+
+    best[kTopCount] = score_;
+
+    std::sort(best, best + kTopCount + 1, [](int a, int b) { return a > b; });
+
+    for (int i = 0; i < kTopCount; ++i)
+    {
+        topScores_[i] = best[i];
+    }
+
+    saveTop();
+}
+
+void Game::loadTop()
+{
+    std::ifstream file("scores.txt");
+
+    for (int i = 0; i < kTopCount; ++i)
+    {
+        int value = 0;
+
+        if (file >> value)
+        {
+            topScores_[i] = std::max(0, value);
+        }
+        else
+        {
+            topScores_[i] = 0;
+        }
+    }
+
+    std::sort(topScores_, topScores_ + kTopCount, [](int a, int b) { return a > b; });
+}
+
+void Game::saveTop() const
+{
+    std::ofstream file("scores.txt", std::ios::trunc);
+
+    for (int i = 0; i < kTopCount; ++i)
+    {
+        file << topScores_[i] << ' ';
     }
 }
 
