@@ -278,6 +278,10 @@ namespace {
     // 0 = день, 1 = глубока€ ночь (выставл€етс€ в Renderer::render)
     float gNightLevel = 0.0f;
 
+    float gDriverTime = 0.0f;   // врем€ дл€ анимации водител€
+    float gDriverWind = 0.0f;   // 0..1, сила встречного ветра (скорость)
+    float gDriverAlert = 0.0f;  // 0..1, водитель напр€гс€: впереди машина, обе руки на руле
+
     // 0 = €сно, 1 = сильный дождь (берЄтс€ из Game::rain(), в туннеле 0)
     float gRain = 0.0f;
 
@@ -867,230 +871,7 @@ namespace {
             }
         }
 
-        // гоночные полосы по капоту, крыше и багажнику следуют профилю кузова
-        if (player) {
-            const Color stripe = { 0.95f, 0.96f, 1.0f, 1.0f };
-            const float sw = W * 0.09f;
-
-            auto strip = [&](float t0, float t1, bool onRoof) {
-                setColor(stripe);
-                glBegin(GL_QUAD_STRIP);
-                glNormal3f(0.0f, 1.0f, 0.0f);
-
-                for (int i = 0; i <= 6; ++i) {
-                    const float t = t0 + (t1 - t0) * static_cast<float>(i) / 6.0f;
-                    float y = carHullTop(s, H, t);
-
-                    if (onRoof) {
-                        y += cabinAt(s, W, L, H, t).ch;
-                    }
-
-                    y += 0.009f;
-
-                    const float z = -L * 0.5f + t * L;
-
-                    glVertex3f(-sw, y, z);
-                    glVertex3f(sw, y, z);
-                }
-
-                glEnd();
-                };
-
-            strip(0.05f, s.hoodEnd - 0.01f, false);
-            strip(s.roofStart + 0.01f, s.roofEnd - 0.01f, true);
-            strip(s.rearBase + 0.015f, 0.95f, false);
-        }
-    }
-
-    // фара: корпус, отражатель, лампа, дневные огни и прозрачна€ линза;
-    // z это центр корпуса фары, нос машины смотрит в -Z
-    void drawHeadlight(float x, float y, float z, float w, float h, bool player) {
-        const Color housing = { 0.03f, 0.03f, 0.035f, 1.0f };
-        const Color reflector = { 0.62f, 0.64f, 0.68f, 1.0f };
-        const Color bulb = player ? Color{ 1.0f, 0.97f, 0.80f, 1.0f } : Color{ 1.0f, 0.92f, 0.62f, 1.0f };
-        const Color drl = { 0.85f, 0.93f, 1.0f, 1.0f };
-
-        drawBox(x, y, z, w * 1.08f, h * 1.10f, 0.07f, housing);
-        drawBox(x, y, z - 0.030f, w * 0.90f, h * 0.86f, 0.02f, reflector);
-        drawBox(x, y + h * 0.04f, z - 0.045f, w * 0.34f, h * 0.46f, 0.03f, bulb);
-        drawBox(x, y - h * 0.34f, z - 0.050f, w * 0.80f, h * 0.08f, 0.02f, drl);
-
-        // линза: лЄгкое голубоватое стекло поверх всего
-        glDisable(GL_LIGHTING);
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glDepthMask(GL_FALSE);
-
-        drawBox(x, y, z - 0.062f, w * 0.96f, h * 0.92f, 0.012f, { 0.85f, 0.92f, 1.0f, 0.22f });
-
-        glDepthMask(GL_TRUE);
-        glDisable(GL_BLEND);
-        glEnable(GL_LIGHTING);
-    }
-
-    // номерной знак: бела€ пластина, син€€ полоса слева и четыре цифры,
-    // собранные из сегментов; читаетс€ из-за кормы (x растЄт вправо)
-    void drawPlate(float x, float y, float z, float w, float h, unsigned int seed) {
-        // биты как в семисегментном шрифте HUD: верх, верх-право, низ-право, низ, низ-лево, верх-лево, середина
-        static const int masks[10] = {
-            0b1111110, 0b0110000, 0b1101101, 0b1111001, 0b0110011,
-            0b1011011, 0b1011111, 0b1110000, 0b1111111, 0b1111011
-        };
-
-        const Color digitCol = { 0.05f, 0.05f, 0.07f, 1.0f };
-
-        drawBox(x, y, z, w, h, 0.03f, { 0.92f, 0.92f, 0.86f, 1.0f });
-        drawBox(x - w * 0.5f + w * 0.06f, y, z + 0.004f, w * 0.10f, h * 0.86f, 0.03f, { 0.10f, 0.20f, 0.70f, 1.0f });
-
-        const float x0 = x - w * 0.5f + w * 0.14f;
-        const float x1 = x + w * 0.5f - w * 0.03f;
-        const float cell = (x1 - x0) / 4.0f;
-        const float dw = cell * 0.68f;
-        const float dh = h * 0.64f;
-        const float t = dh * 0.17f;
-        const float zd = z + 0.014f;
-
-        seed %= 10000u;
-
-        for (int i = 0; i < 4; ++i) {
-            unsigned int div = 1000u;
-            for (int k = 0; k < i; ++k) {
-                div /= 10u;
-            }
-
-            const int mask = masks[(seed / div) % 10u];
-            const float cx = x0 + (static_cast<float>(i) + 0.5f) * cell;
-
-            if (mask & 0b1000000) drawBox(cx, y + dh * 0.5f - t * 0.5f, zd, dw, t, 0.02f, digitCol);
-            if (mask & 0b0001000) drawBox(cx, y - dh * 0.5f + t * 0.5f, zd, dw, t, 0.02f, digitCol);
-            if (mask & 0b0000001) drawBox(cx, y, zd, dw, t, 0.02f, digitCol);
-            if (mask & 0b0100000) drawBox(cx + dw * 0.5f - t * 0.5f, y + dh * 0.25f, zd, t, dh * 0.5f, 0.02f, digitCol);
-            if (mask & 0b0010000) drawBox(cx + dw * 0.5f - t * 0.5f, y - dh * 0.25f, zd, t, dh * 0.5f, 0.02f, digitCol);
-            if (mask & 0b0000100) drawBox(cx - dw * 0.5f + t * 0.5f, y - dh * 0.25f, zd, t, dh * 0.5f, 0.02f, digitCol);
-            if (mask & 0b0000010) drawBox(cx - dw * 0.5f + t * 0.5f, y + dh * 0.25f, zd, t, dh * 0.5f, 0.02f, digitCol);
-        }
-    }
-
-    // мелкие детали кузова: пороги, ручки, антенна, губа и диффузор, противотуманки,
-    // у грузовика труба и брызговики, у автобуса кондиционер на крыше и дверь
-    void drawCarDetails(TrafficType type, const CarShape& s, float W, float L, float H, bool player) {
-        const Color dark = { 0.02f, 0.02f, 0.025f, 1.0f };
-        const Color chrome = { 0.72f, 0.75f, 0.80f, 1.0f };
-
-        const bool boxy = (type == TrafficType::Truck || type == TrafficType::Bus);
-        const float hw = W * 0.5f;
-        const float wheelZ = L * 0.28f;
-
-        if (!boxy) {
-            // пороги между колЄсами
-            const float skirtLen = std::max(0.4f, L * 0.56f - 0.75f);
-
-            drawBox(-hw * 0.95f, 0.22f, 0.0f, 0.04f, 0.07f, skirtLen, dark);
-            drawBox(hw * 0.95f, 0.22f, 0.0f, 0.04f, 0.07f, skirtLen, dark);
-
-            // ручки дверей
-            const float handleY = H * s.belt * 0.72f;
-            const float tHandle[2] = {
-                s.hoodEnd + (s.roofEnd - s.hoodEnd) * 0.40f,
-                s.hoodEnd + (s.roofEnd - s.hoodEnd) * 0.85f
-            };
-
-            for (int i = 0; i < 2; ++i) {
-                const float hz = -L * 0.5f + tHandle[i] * L;
-
-                drawBox(-(hw + 0.012f), handleY, hz, 0.02f, 0.03f, 0.14f, chrome);
-                drawBox(hw + 0.012f, handleY, hz, 0.02f, 0.03f, 0.14f, chrome);
-            }
-
-            // антенна на крыше у машин потока (кроме спорткара и купе)
-            if (!player && type != TrafficType::Sport && type != TrafficType::Coupe) {
-                const CabinSec c = cabinAt(s, W, L, H, s.roofEnd - 0.04f);
-
-                drawCylinder(c.wt * 0.6f, c.y0 + c.ch, c.z, 0.008f, 0.38f, 6, dark);
-            }
-
-            // противотуманки на переднем бампере
-            const Color fog = { 0.95f, 0.95f, 0.85f, 1.0f };
-
-            drawBox(-W * 0.36f, 0.25f, -L * 0.5f - 0.075f, W * 0.08f, 0.045f, 0.02f, fog);
-            drawBox(W * 0.36f, 0.25f, -L * 0.5f - 0.075f, W * 0.08f, 0.045f, 0.02f, fog);
-
-            // передн€€ губа и задний диффузор у спортивных машин
-            if (player || type == TrafficType::Sport) {
-                drawBox(0.0f, 0.185f, -L * 0.5f - 0.06f, W * 0.92f, 0.035f, 0.18f, dark);
-                drawBox(0.0f, 0.185f, L * 0.5f + 0.05f, W * 0.80f, 0.035f, 0.16f, dark);
-            }
-        }
-        else {
-            // брызговики за задними колЄсами
-            drawBox(-hw, 0.22f, wheelZ + 0.42f, 0.02f, 0.22f, 0.28f, dark);
-            drawBox(hw, 0.22f, wheelZ + 0.42f, 0.02f, 0.22f, 0.28f, dark);
-
-            if (type == TrafficType::Truck) {
-                // вертикальна€ выхлопна€ труба за кабиной
-                drawBox(hw + 0.04f, 0.45f, -L * 0.17f, 0.10f, 0.08f, 0.12f, dark);
-                drawCylinder(hw + 0.08f, 0.35f, -L * 0.17f, 0.07f, 1.65f, 10, chrome);
-            }
-            else {
-                // кондиционер на крыше автобуса и передн€€ дверь
-                drawBox(0.0f, H + 0.10f, L * 0.10f, W * 0.55f, 0.20f, 1.6f, { 0.80f, 0.82f, 0.84f, 1.0f });
-                drawBox(hw + 0.02f, 1.10f, -L * 0.38f, 0.02f, 1.80f, 1.0f, { 0.04f, 0.10f, 0.15f, 1.0f });
-            }
-        }
-    }
-
-    // капли дожд€ на капоте, крыше и багажнике: мелкие светлые п€тнышки
-    void drawRainBeads(const CarShape& s, float W, float L, float H) {
-        glDisable(GL_LIGHTING);
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glDepthMask(GL_FALSE);
-
-        setColor({ 0.88f, 0.94f, 1.0f, std::min(0.65f, gRain * 0.8f) });
-
-        glBegin(GL_QUADS);
-        glNormal3f(0.0f, 1.0f, 0.0f);
-
-        for (int i = 0; i < 26; ++i) {
-            const float fi = static_cast<float>(i);
-            const float hx = fract(std::sin(fi * 12.9898f) * 43758.5453f);
-            const float hz = fract(std::sin(fi * 78.233f) * 12345.6789f);
-            const int zone = i % 3;
-
-            float t = 0.0f;
-            float y = 0.0f;
-
-            if (zone == 0) {
-                t = 0.06f + (s.hoodEnd - 0.10f) * hz;
-                y = carHullTop(s, H, t);
-            }
-            else if (zone == 1) {
-                t = s.roofStart + (s.roofEnd - s.roofStart) * hz;
-                y = carHullTop(s, H, t) + cabinAt(s, W, L, H, t).ch;
-            }
-            else {
-                t = s.rearBase + (0.93f - s.rearBase) * hz;
-                y = carHullTop(s, H, t);
-            }
-
-            const float hw = W * 0.5f * carWidthFrac(s, t) * (zone == 1 ? s.roofW * 0.9f : 0.82f);
-            const float x = (hx - 0.5f) * 2.0f * hw;
-            const float zz = -L * 0.5f + t * L;
-            const float r = 0.014f + 0.012f * fract(fi * 0.37f);
-
-            y += 0.012f;
-
-            glVertex3f(x - r, y, zz - r);
-            glVertex3f(x + r, y, zz - r);
-            glVertex3f(x + r, y, zz + r);
-            glVertex3f(x - r, y, zz + r);
-        }
-
         glEnd();
-
-        glDepthMask(GL_TRUE);
-        glDisable(GL_BLEND);
-        glEnable(GL_LIGHTING);
     }
 
     void drawCarModel(
@@ -1180,6 +961,11 @@ namespace {
             const Color busGlass = { 0.05f, 0.13f, 0.19f, 1.0f };
             const float upperH = height - bodyHeight;
 
+            const float cabinHeight =
+                type == TrafficType::Van
+                ? height * 0.63f
+                : height * 0.52f;
+
             drawBox(
                 0.0f,
                 bodyHeight + upperH * 0.5f,
@@ -1204,8 +990,8 @@ namespace {
             const float mirrorY = height * shape.belt + 0.01f;
             const float mirrorZ = -length * 0.5f + shape.hoodEnd * length + 0.10f;
 
-            drawBox(-(width * 0.5f + 0.09f), mirrorY, mirrorZ, 0.16f, 0.10f, 0.12f, mirror);
-            drawBox(width * 0.5f + 0.09f, mirrorY, mirrorZ, 0.16f, 0.10f, 0.12f, mirror);
+            drawBox(-(width * 0.5f + 0.10f), bodyHeight + 0.10f, -length * 0.14f, 0.18f, 0.10f, 0.12f, mirror);
+            drawBox(width * 0.5f + 0.10f, bodyHeight + 0.10f, -length * 0.14f, 0.18f, 0.10f, 0.12f, mirror);
 
             // задний спойлер у спортивных машин в потоке
             if (type == TrafficType::Sport && !player) {
@@ -1217,12 +1003,15 @@ namespace {
                 drawBox(width * 0.30f, deck + 0.07f, length * 0.43f, 0.06f, 0.14f, 0.12f, dark);
             }
 
-            // небольшой Ђутиный хвостї на багажнике купе
-            if (type == TrafficType::Coupe) {
-                const Color dark = { 0.04f, 0.04f, 0.05f, 1.0f };
-                const float deck = carHullTop(shape, height, 0.92f);
+            // гоночные полосы на машине игрока
+            if (player) {
+                const Color stripe = { 0.95f, 0.96f, 1.0f, 1.0f };
+                const float topY = bodyHeight * 1.05f + 0.006f;
+                const float roofY = bodyHeight + cabinHeight * 0.95f + 0.006f;
 
-                drawBox(0.0f, deck + 0.04f, length * 0.44f, width * 0.78f, 0.04f, 0.16f, dark);
+                drawBox(0.0f, topY, -length * 0.38f, width * 0.18f, 0.012f, length * 0.24f, stripe);
+                drawBox(0.0f, roofY, -length * 0.03f, width * 0.16f, 0.012f, cabinLength, stripe);
+                drawBox(0.0f, topY, length * 0.35f, width * 0.18f, 0.012f, length * 0.28f, stripe);
             }
         }
 
@@ -3319,6 +3108,39 @@ void Renderer::render(const Game& game)
     gReflSky = mixColor(sky.horizon, { 1.0f, 1.0f, 1.0f, 1.0f }, 0.25f);
 
     updateEffects(game);
+
+
+    gDriverTime = game.worldTime();
+    gDriverWind = std::clamp(game.speed() / std::max(game.maxSpeed(), 1.0f), 0.0f, 1.0f);
+
+    // водитель: если впереди машина - обе руки на руль, проехали - рука снова на окне
+    {
+        static float prevT = 0.0f;
+        static float hold = 0.0f;
+
+        const float nowT = game.worldTime();
+        const float dtD = std::clamp(nowT - prevT, 0.0f, 0.1f);
+        prevT = nowT;
+
+        bool carAhead = false;
+
+        for (const auto& v : game.traffic()) {
+            const float ahead = game.playerZ() - v.z;                 // > 0: машина впереди
+            const float side = std::fabs(v.x - game.playerX());
+
+            if (ahead > -3.0f && ahead < 40.0f && side < 2.2f) {
+                carAhead = true;
+                break;
+            }
+        }
+
+        // держим руки на руле ещЄ 0.7 с после того, как машина осталась позади
+        hold = carAhead ? 0.7f : std::max(0.0f, hold - dtD);
+
+        const float target = hold > 0.0f ? 1.0f : 0.0f;
+
+        gDriverAlert += (target - gDriverAlert) * std::min(1.0f, dtD * 9.0f);
+    }
 
     // в туннеле туман и фон тЄмные, чтобы дальний конец не светилс€ днЄм
     const Color tunnelFog = { 0.02f, 0.02f, 0.04f, 1.0f };
