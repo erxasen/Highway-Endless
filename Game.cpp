@@ -1050,7 +1050,7 @@ void Game::changeLane(int direction)
 void Game::update(float dt)
 {
     // забег закончился: один раз заносим результат в таблицу
-    if (state_ == GameState::GameOver && !runRecorded_)
+    if (state_ == GameState::GameOver && !runRecorded_ && gameMode_ != GameMode::TwoPlayerBattle)
     {
         recordRun();
     }
@@ -1310,8 +1310,27 @@ void Game::update(float dt)
 
         audio_.setSkid(skidding ? 1.0f : 0.0f);
     }
-    if (gameMode_ == GameMode::TwoPlayerBattle && health_ <= 0.0f && player2Health_ <= 0.0f)
-        state_ = GameState::GameOver;
+    if (gameMode_ == GameMode::TwoPlayerBattle && state_ == GameState::Running)
+    {
+        const bool finish1 = distance_ >= battleFinishDistance();
+        const bool finish2 = player2Distance_ >= battleFinishDistance();
+        if (finish1 || finish2)
+        {
+            if (finish1 && finish2)
+            {
+                const float t1 = (battleFinishDistance() - (distance_ - speed_ * dt)) / std::max(speed_ * dt, 0.0001f);
+                const float t2 = (battleFinishDistance() - (player2Distance_ - player2Speed_ * dt)) / std::max(player2Speed_ * dt, 0.0001f);
+                battleWinner_ = std::abs(t1 - t2) < 0.0001f ? 3 : (t1 < t2 ? 1 : 2);
+            }
+            else battleWinner_ = finish1 ? 1 : 2;
+            state_ = GameState::GameOver;
+        }
+        else if (health_ <= 0.0f && player2Health_ <= 0.0f)
+        {
+            battleWinner_ = 3;
+            state_ = GameState::GameOver;
+        }
+    }
 
 }
 

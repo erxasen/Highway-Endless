@@ -3254,6 +3254,30 @@ void Renderer::render(const Game& game)
         drawText("SPEED " + std::to_string(static_cast<int>(game.player2SpeedKmh())) + " KMH  NITRO " + std::to_string(static_cast<int>(game.player2Boost())) + "%", leftWidth + 18.0f, 52.0f, 0.19f, {1,1,1,1});
         drawText("HP " + std::to_string(static_cast<int>(game.health())) + "  DIST " + std::to_string(static_cast<int>(game.distance())) + " M", 18.0f, 78.0f, 0.19f, {1,1,1,1});
         drawText("HP " + std::to_string(static_cast<int>(game.player2Health())) + "  DIST " + std::to_string(static_cast<int>(game.player2Distance())) + " M", leftWidth + 18.0f, 78.0f, 0.19f, {1,1,1,1});
+        drawText("FINISH 3000 M", 18.0f, 104.0f, 0.23f, {1.0f, 0.84f, 0.25f, 1.0f});
+        drawText("FINISH 3000 M", leftWidth + 18.0f, 104.0f, 0.23f, {1.0f, 0.84f, 0.25f, 1.0f});
+        const float gap = game.battleGap();
+        const std::string leader = gap < 0.5f ? "NECK AND NECK" :
+            (game.distance() > game.player2Distance() ? "PLAYER 1 LEADS" : "PLAYER 2 LEADS");
+        drawText(leader + "  GAP " + std::to_string(static_cast<int>(gap)) + " M",
+            18.0f, 131.0f, 0.20f, {1.0f, 1.0f, 1.0f, 1.0f});
+        if (game.state() == GameState::GameOver)
+        {
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            drawOverlayRect(0.0f, 0.0f, static_cast<float>(width_), static_cast<float>(height_),
+                {0.0f, 0.0f, 0.0f, 0.72f});
+            const std::string result = game.battleWinner() == 1 ? "PLAYER 1 WINS" :
+                game.battleWinner() == 2 ? "PLAYER 2 WINS" : "DRAW";
+            drawTextCentered(result, width_ * 0.5f, height_ * 0.5f - 65.0f, 1.0f,
+                {1.0f, 0.83f, 0.25f, 1.0f});
+            drawTextCentered("P1 " + std::to_string(static_cast<int>(game.distance())) + " M     P2 " +
+                std::to_string(static_cast<int>(game.player2Distance())) + " M",
+                width_ * 0.5f, height_ * 0.5f + 8.0f, 0.45f, {1,1,1,1});
+            drawTextCentered("R RESTART     ESC MENU", width_ * 0.5f,
+                height_ * 0.5f + 70.0f, 0.35f, {0.75f,0.9f,1.0f,1.0f});
+            glDisable(GL_BLEND);
+        }
         return;
     }
 

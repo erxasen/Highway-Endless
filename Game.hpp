@@ -165,6 +165,9 @@ public:
     float player2Distance() const { return player2Distance_; }
     float player2Boost() const { return player2Boost_; }
     float player2Health() const { return player2Health_; }
+    static constexpr float battleFinishDistance() { return 3000.0f; }
+    int battleWinner() const { return battleWinner_; }
+    float battleGap() const { return std::abs(distance_ - player2Distance_); }
 
     GameState state() const {
         return state_;
@@ -592,6 +595,7 @@ private:
     GameMode gameMode_ = GameMode::SinglePlayer;
     GameMode selectedGameMode_ = GameMode::SinglePlayer;
     bool multiplayerPending_ = false;
+    int battleWinner_ = 0;
     float player2X_ = 3.35f;
     float player2Z_ = 4.0f;
     float player2Yaw_ = 0.0f;
