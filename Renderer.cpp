@@ -12,6 +12,7 @@
 
 namespace {
 
+    int gBattleCamera = 0;
     constexpr float kPi = 3.14159265358979323846f;
     constexpr float kRoadWidth = 10.4f;
     constexpr float kLaneWidth = 3.35f;
@@ -537,7 +538,7 @@ namespace {
 
     CarShape carShape(TrafficType type) {
         switch (type) {
-        case TrafficType::Sport: return { 0.48f, 0.40f, 0.54f, 0.67f, 0.80f, 0.74f, 0.94f, 0.66f };
+        case TrafficType::Sport: return { 0.43f, 0.37f, 0.52f, 0.66f, 0.82f, 0.67f, 0.83f, 0.72f };
         case TrafficType::Van:   return { 0.46f, 0.16f, 0.22f, 0.90f, 0.97f, 0.92f, 1.00f, 0.82f };
                              // купе: длинный капот, короткая кабина с узкой крышей, пологое заднее стекло
         case TrafficType::Coupe: return { 0.49f, 0.34f, 0.50f, 0.62f, 0.84f, 0.80f, 0.92f, 0.64f };
@@ -1335,10 +1336,13 @@ namespace {
 
     CarLook carLook(int id) {
         switch (id) {
-        case 1: return { TrafficType::Coupe, 1.60f, 3.60f, 0.98f };
-        case 2: return { TrafficType::Sedan, 1.58f, 3.55f, 1.10f };
-        case 3: return { TrafficType::Van, 1.78f, 4.00f, 1.45f };
-        default: return { TrafficType::Sport, 1.62f, 3.70f, 1.02f };
+        case 0: return { TrafficType::Coupe, 1.66f, 3.76f, 0.91f };
+        case 1: return { TrafficType::Sport, 1.80f, 4.02f, 0.82f };
+        case 2: return { TrafficType::Coupe, 1.88f, 4.12f, 0.78f };
+        case 3: return { TrafficType::Sport, 1.98f, 4.48f, 0.90f };
+        case 4: return { TrafficType::Coupe, 2.04f, 4.22f, 0.72f };
+        case 5: return { TrafficType::Sport, 2.14f, 4.46f, 0.67f };
+        default: return { TrafficType::Coupe, 1.66f, 3.76f, 0.91f };
         }
     }
 
@@ -3206,6 +3210,53 @@ void Renderer::render(const Game& game)
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+    if (game.gameMode() == GameMode::TwoPlayerBattle &&
+        (game.state() == GameState::Running || game.state() == GameState::Paused || game.state() == GameState::GameOver))
+    {
+        const int fullWidth = width_;
+        const int leftWidth = fullWidth / 2;
+        glEnable(GL_SCISSOR_TEST);
+        for (int player = 0; player < 2; ++player)
+        {
+            const int x = player == 0 ? 0 : leftWidth;
+            const int viewportWidth = player == 0 ? leftWidth : fullWidth - leftWidth;
+            glViewport(x, 0, viewportWidth, height_);
+            glScissor(x, 0, viewportWidth, height_);
+            glClear(GL_DEPTH_BUFFER_BIT);
+            width_ = viewportWidth;
+            gBattleCamera = player;
+            drawSky(width_, height_, game.worldTime(), night, sky);
+            renderWorld(game);
+        }
+        width_ = fullWidth;
+        gBattleCamera = 0;
+        glDisable(GL_SCISSOR_TEST);
+        glViewport(0, 0, width_, height_);
+        glMatrixMode(GL_PROJECTION);
+        glLoadIdentity();
+        glOrtho(0, width_, height_, 0, -1, 1);
+        glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
+        glDisable(GL_DEPTH_TEST);
+        glDisable(GL_LIGHTING);
+        glDisable(GL_FOG);
+        glDisable(GL_BLEND);
+        glBegin(GL_QUADS);
+        glColor3f(0.03f, 0.07f, 0.11f);
+        glVertex2f(leftWidth - 2.0f, 0.0f);
+        glVertex2f(leftWidth + 2.0f, 0.0f);
+        glVertex2f(leftWidth + 2.0f, static_cast<float>(height_));
+        glVertex2f(leftWidth - 2.0f, static_cast<float>(height_));
+        glEnd();
+        drawText("PLAYER 1  WASD + SHIFT", 18.0f, 20.0f, 0.24f, {0.35f, 0.9f, 1.0f, 1.0f});
+        drawText("PLAYER 2  ARROWS + RCTRL", leftWidth + 18.0f, 20.0f, 0.24f, {1.0f, 0.65f, 0.3f, 1.0f});
+        drawText("SPEED " + std::to_string(static_cast<int>(game.speedKmh())) + " KMH  NITRO " + std::to_string(static_cast<int>(game.boost())) + "%", 18.0f, 52.0f, 0.19f, {1,1,1,1});
+        drawText("SPEED " + std::to_string(static_cast<int>(game.player2SpeedKmh())) + " KMH  NITRO " + std::to_string(static_cast<int>(game.player2Boost())) + "%", leftWidth + 18.0f, 52.0f, 0.19f, {1,1,1,1});
+        drawText("HP " + std::to_string(static_cast<int>(game.health())) + "  DIST " + std::to_string(static_cast<int>(game.distance())) + " M", 18.0f, 78.0f, 0.19f, {1,1,1,1});
+        drawText("HP " + std::to_string(static_cast<int>(game.player2Health())) + "  DIST " + std::to_string(static_cast<int>(game.player2Distance())) + " M", leftWidth + 18.0f, 78.0f, 0.19f, {1,1,1,1});
+        return;
+    }
+
     drawSky(width_, height_, game.worldTime(), night, sky);
 
     renderWorld(game);
@@ -3233,7 +3284,7 @@ void Renderer::renderWorld(const Game& game)
     static const auto kShowStart = std::chrono::steady_clock::now();
     const float showTime = std::chrono::duration<float>(std::chrono::steady_clock::now() - kShowStart).count();
 
-    const float cameraLean = game.playerYaw() * 0.035f;
+    const float cameraLean = (gBattleCamera == 1 ? game.player2Yaw() : game.playerYaw()) * 0.035f;
 
     // тряска камеры: лёгкая при бусте, сильная при ударе
     const float tt = game.worldTime();
@@ -3257,8 +3308,8 @@ void Renderer::renderWorld(const Game& game)
     }
     else {
         lookAt(
-            { game.playerX() * 0.20f - cameraLean + shakeX, 6.3f + shakeY, 14.6f },
-            { game.playerX() * 0.16f, 0.70f, -20.0f },
+            { (gBattleCamera == 1 ? game.player2X() : game.playerX()) * 0.20f - cameraLean + shakeX, 6.3f + shakeY, game.playerZ() + 10.6f },
+            { (gBattleCamera == 1 ? game.player2X() : game.playerX()) * 0.16f, 0.70f, game.playerZ() - 24.0f },
             { 0.0f, 1.0f, 0.0f }
         );
     }
@@ -3297,9 +3348,15 @@ void Renderer::renderWorld(const Game& game)
         glLightModelfv(GL_LIGHT_MODEL_AMBIENT, global);
     }
 
-    drawRoad(game.roadOffset(), game.worldTime());
-    drawEnvironment(game.roadOffset(), game.worldTime());
-    drawTunnel(game.playerZ());
+    const bool secondView = gBattleCamera == 1 && game.gameMode() == GameMode::TwoPlayerBattle;
+    const float viewDistance = secondView ? game.player2Distance() : game.distance();
+    drawRoad(viewDistance, game.worldTime());
+    drawEnvironment(viewDistance, game.worldTime());
+    if (!secondView) drawTunnel(game.playerZ());
+    if (secondView) {
+        glPushMatrix();
+        glTranslatef(0.0f, 0.0f, game.player2Distance() - game.distance());
+    }
 
     // витрина гаража: только выбранная курсором машина, цвет берётся с курсора покраски
     if (showroom) {
@@ -3342,6 +3399,8 @@ void Renderer::renderWorld(const Game& game)
     }
 
     for (const auto& vehicle : game.traffic()) {
+        const float localZ = vehicle.z + (secondView ? game.player2Distance() - game.distance() : 0.0f);
+        if (localZ < -260.0f || localZ > 45.0f) continue;
         drawCarModel(
             vehicle.x,
             vehicle.z,
@@ -3358,10 +3417,19 @@ void Renderer::renderWorld(const Game& game)
     }
 
     // поворотник включается, пока машина перестраивается в другую полосу
+    if (game.gameMode() == GameMode::TwoPlayerBattle && game.state() != GameState::Menu)
+    {
+        const CarLook secondLook = carLook(game.selectedCar());
+        if (game.player2Z() + (secondView ? game.player2Distance() - game.distance() : 0.0f) > -260.0f &&
+            game.player2Z() + (secondView ? game.player2Distance() - game.distance() : 0.0f) < 45.0f)
+        drawCarModel(game.player2X(), game.player2Z(), secondLook.w, secondLook.l,
+            secondLook.h, {0.95f, 0.23f, 0.12f, 1.0f}, secondLook.type,
+            game.player2Yaw(), true, std::fmod(game.player2Distance() / 0.31f, 2.0f * kPi));
+    }
     const float laneDx = Game::laneCenter(game.targetLane()) - game.playerX();
     const int signalDir = laneDx > 0.25f ? 1 : (laneDx < -0.25f ? -1 : 0);
 
-    const CarLook playerLook = carLook(game.selectedCar());
+    const CarLook playerLook = carLook(game.state() == GameState::Menu ? 0 : game.selectedCar());
 
     drawCarModel(
         game.playerX(),
@@ -3436,6 +3504,8 @@ void Renderer::renderWorld(const Game& game)
     }
 
     drawPoliceGlow(game.playerX(), game.playerZ(), policeLight, game.worldTime());
+    if (secondView) glPopMatrix();
+
 }
 
 void Renderer::renderHud(const Game& game)
@@ -3463,6 +3533,76 @@ void Renderer::renderHud(const Game& game)
 
     const Color panelBg = { 0.015f, 0.020f, 0.027f, 0.82f };
     const Color labelColor = { 0.76f, 0.84f, 0.90f, 1.0f };
+
+    // Dedicated home screen. Do not draw gameplay HUD or paused/game-over overlays.
+    if (game.state() == GameState::Menu)
+    {
+        const float scale = std::min(w / 1600.0f, h / 900.0f);
+        const float px = 62.0f * scale;
+        const float py = 165.0f * scale;
+        const float pw = 538.0f * scale;
+        const float ph = 594.0f * scale;
+        const Color cyan = { 0.12f, 0.85f, 1.0f, 1.0f };
+        const Color white = { 0.96f, 0.98f, 1.0f, 1.0f };
+        const Color muted = { 0.65f, 0.76f, 0.85f, 1.0f };
+        const Color red = { 1.0f, 0.29f, 0.38f, 1.0f };
+        const auto sx = [&](float n) { return n * scale; };
+        // Road stays visible as an animated hero background, without gameplay widgets.
+        drawOverlayRect(0.0f, 0.0f, w, h, { 0.005f, 0.013f, 0.032f, 0.62f });
+        drawOverlayRect(0.0f, 0.0f, sx(660), h, { 0.007f, 0.018f, 0.037f, 0.80f });
+        drawOverlayRect(0.0f, 0.0f, w, sx(8), cyan);
+        drawText("HIGHWAY", sx(75), sx(34), 1.15f * scale, white);
+        drawText("ENDLESS", sx(75), sx(101), 1.15f * scale, cyan);
+        drawText("ARCADE RACING  /  LOCAL BATTLE", sx(830), sx(54), 0.32f * scale, white);
+
+        drawPanel(px, py, pw, ph, { 0.009f, 0.022f, 0.045f, 0.96f },
+                  { 0.12f, 0.38f, 0.56f, 0.94f });
+        drawText("CHOOSE YOUR RIDE", px + sx(25), py + sx(26), 0.55f * scale, white);
+        drawText("START A RUN OR CHALLENGE A FRIEND", px + sx(25), py + sx(74), 0.24f * scale, muted);
+
+        const auto button = [&](float y, float height, Color bg, Color edge,
+                                const char* title, const char* subtitle, float titleSize) {
+            drawPanel(px + sx(24), py + sx(y), sx(490), sx(height), bg, edge);
+            drawOverlayRect(px + sx(24), py + sx(y), sx(6), sx(height), edge);
+            drawText(title, px + sx(46), py + sx(y + 10), titleSize * scale, white);
+            if (subtitle[0] != '\0')
+                drawText(subtitle, px + sx(46), py + sx(y + height - 23), 0.22f * scale, muted);
+        };
+        button(105, 75, { 0.016f, 0.11f, 0.19f, 0.98f }, cyan,
+               "SINGLE PLAYER", "ENDLESS RUN  /  TIME WARP  /  HIGH SCORES", 0.51f);
+        button(194, 75, { 0.20f, 0.025f, 0.055f, 0.98f }, red,
+               "2 PLAYER BATTLE", "LOCAL SPLIT SCREEN  /  IN DEVELOPMENT", 0.49f);
+        drawOverlayRect(px + sx(24), py + sx(283), sx(490), sx(2), { 0.19f, 0.36f, 0.49f, 0.8f });
+        button(296, 59, { 0.025f, 0.065f, 0.11f, 0.96f },
+               { 0.25f, 0.66f, 0.89f, 1.0f }, "GARAGE", "", 0.48f);
+        button(366, 59, { 0.025f, 0.065f, 0.11f, 0.96f },
+               { 0.25f, 0.66f, 0.89f, 1.0f }, "ACHIEVEMENTS", "", 0.48f);
+        button(436, 59, { 0.025f, 0.065f, 0.11f, 0.96f },
+               { 0.25f, 0.66f, 0.89f, 1.0f }, "SETTINGS", "", 0.48f);
+        button(506, 59, { 0.065f, 0.035f, 0.055f, 0.96f },
+               { 0.75f, 0.30f, 0.34f, 1.0f }, "EXIT GAME", "", 0.48f);
+
+        // Separate player profile, so garage currency and progression remain visible.
+        const float infoX = std::max(sx(745), w - sx(560));
+        const float infoY = h - sx(232);
+        drawPanel(infoX, infoY, sx(470), sx(175),
+                  { 0.007f, 0.019f, 0.037f, 0.90f },
+                  { 0.12f, 0.78f, 0.94f, 0.85f });
+        drawText("DRIVER PROFILE", infoX + sx(22), infoY + sx(15), 0.38f * scale, white);
+        drawText("COINS  " + std::to_string(game.bank()), infoX + sx(22), infoY + sx(66),
+                 0.43f * scale, { 1.0f, 0.83f, 0.26f, 1.0f });
+        drawText("LEVEL  " + std::to_string(game.level()), infoX + sx(255), infoY + sx(66),
+                 0.43f * scale, cyan);
+        drawText("HIGH SCORE  " + std::to_string(game.highScore()), infoX + sx(22),
+                 infoY + sx(121), 0.34f * scale, muted);
+        if (game.multiplayerPending())
+            drawText("2 PLAYER BATTLE  -  COMING NEXT", px + sx(24), py + sx(571),
+                     0.23f * scale, red);
+        drawText("MOUSE: CLICK BUTTONS    1: SOLO    2: BATTLE    G: GARAGE    O: SETTINGS",
+                 sx(74), h - sx(26), 0.21f * scale, muted);
+        return;
+    }
+
 
     // импульс при росте комбо
     if (game.combo() > gPrevCombo) {
@@ -3936,90 +4076,75 @@ void Renderer::renderHud(const Game& game)
         }
     }
 
-    // ---- Главное меню ----
-    if (game.state() == GameState::Menu) {
-        drawOverlayRect(0.0f, 0.0f, w, h, { 0.0f, 0.0f, 0.0f, 0.62f });
-
-        const float mw = 640.0f;
-        const float mh = 640.0f;
-        const float mx0 = centerX - mw * 0.5f;
-        const float my0 = h * 0.5f - mh * 0.5f;
-
-        drawPanel(mx0, my0, mw, mh, { 0.015f, 0.022f, 0.030f, 0.94f }, { 1.0f, 0.78f, 0.20f, 0.90f });
-
-        drawTextCentered("TRAFFIC RACER", centerX, my0 + 26.0f, 0.90f, { 1.0f, 0.83f, 0.22f, 1.0f });
-
-        // таблица лучших забегов
-        drawTextCentered("TOP SCORES", centerX, my0 + 92.0f, 0.30f, { 0.42f, 0.85f, 1.0f, 1.0f });
-
-        for (int i = 0; i < kTopCount; ++i) {
-            const Color rc =
-                i == 0
-                ? Color{ 1.0f, 0.83f, 0.22f, 1.0f }
-            : Color{ 0.80f, 0.88f, 0.94f, 1.0f };
-
-            drawTextCentered(
-                std::to_string(i + 1) + "  " + std::to_string(game.topScore(i)),
-                centerX, my0 + 128.0f + static_cast<float>(i) * 32.0f, 0.26f, rc
-            );
+    // ---- Гараж ----
+    if (game.state() == GameState::Garage && game.garageTab() == 0) {
+        const float px = 20.0f, py = 95.0f;
+        const float pw = std::min(590.0f, w * 0.44f);
+        const float ph = h - py - 18.0f;
+        const Color cyan = { 0.22f, 0.82f, 1.0f, 1.0f };
+        const Color gold = { 1.0f, 0.80f, 0.22f, 1.0f };
+        const Color green = { 0.28f, 1.0f, 0.55f, 1.0f };
+        drawOverlayRect(0.0f, 0.0f, pw + 45.0f, h, { 0.0f, 0.0f, 0.0f, 0.78f });
+        drawPanel(px, py, pw, ph, { 0.015f, 0.025f, 0.045f, 0.96f }, cyan);
+        drawText("CAR SHOWROOM", px + 24, py + 14, 0.57f, cyan);
+        drawText("COINS  " + std::to_string(game.bank()), px + 25, py + 49, 0.32f, gold);
+        const float tabW = (pw - 42.0f) * 0.5f;
+        drawPanel(px + 16, py + 72, tabW, 48, { 0.02f, 0.15f, 0.22f, 0.96f }, cyan);
+        drawPanel(px + 26 + tabW, py + 72, tabW, 48, { 0.04f, 0.05f, 0.07f, 0.96f }, { 0.35f, 0.42f, 0.50f, 1.0f });
+        drawTextCentered("CARS", px + 16 + tabW * 0.5f, py + 83, 0.36f, cyan);
+        drawTextCentered("UPGRADES", px + 26 + tabW * 1.5f, py + 83, 0.32f, labelColor);
+        const float rowY = py + 137.0f;
+        const float rowH = std::min(67.0f, (h - rowY - 160.0f) / 6.0f);
+        for (int i = 0; i < kCarCount; ++i) {
+            const bool selected = game.carCursor() == i;
+            const bool owned = game.carUnlocked(i);
+            const bool equipped = game.selectedCar() == i;
+            const float ry = rowY + rowH * i;
+            drawPanel(px + 18, ry, pw - 36, rowH - 5,
+                selected ? Color{0.04f,0.16f,0.23f,0.98f} : Color{0.025f,0.04f,0.065f,0.96f},
+                selected ? cyan : Color{0.18f,0.28f,0.36f,0.8f});
+            drawText(std::to_string(i + 1), px + 29, ry + 8, 0.33f, selected ? cyan : labelColor);
+            drawText(Game::carName(i), px + 60, ry + 7, 0.32f, {0.95f,0.97f,1.0f,1.0f});
+            drawText(equipped ? "EQUIPPED" : owned ? "OWNED" : "LOCKED",
+                     px + 60, ry + 30, 0.19f, equipped ? green : labelColor);
+            drawText(std::to_string(Game::carCost(i)), px + pw - 120, ry + 16, 0.27f, owned ? green : gold);
         }
-
-        drawTextCentered("COINS " + std::to_string(game.bank()), centerX, my0 + 304.0f, 0.30f, { 1.0f, 0.88f, 0.28f, 1.0f });
-
-        const float blink = 0.60f + 0.40f * std::sin(t * 4.0f);
-
-        // выбранная трасса и какие ещё закрыты
-        {
-            std::string locked;
-
-            for (int i = 0; i < kTrackCount; ++i) {
-                if (!game.trackUnlocked(i)) {
-                    if (!locked.empty()) {
-                        locked += "   ";
-                    }
-
-                    locked += std::string(Game::trackName(i)) + " LEVEL " + std::to_string(Game::trackLevelReq(i));
-                }
-            }
-
-            drawTextCentered(
-                std::string("TRACK ") + Game::trackName(game.track()) + "   T CHANGE",
-                centerX, my0 + 326.0f, 0.28f, { 0.90f, 0.80f, 0.55f, 1.0f }
-            );
-
-            if (!locked.empty()) {
-                drawTextCentered("LOCKED " + locked, centerX, my0 + 348.0f, 0.16f, { 0.65f, 0.72f, 0.78f, 1.0f });
-            }
+        const int cur = game.carCursor();
+        const bool owned = game.carUnlocked(cur);
+        const bool equipped = game.selectedCar() == cur;
+        const bool levelOk = game.level() >= Game::carLevelReq(cur);
+        const bool canBuy = levelOk && game.bank() >= Game::carCost(cur);
+        const float ay = h - 88.0f;
+        drawPanel(px + 18, ay, 100, 58, {0.03f,0.08f,0.12f,1.0f}, cyan);
+        drawPanel(px + pw - 118, ay, 100, 58, {0.03f,0.08f,0.12f,1.0f}, cyan);
+        drawTextCentered("< PREV", px + 68, ay + 17, 0.29f, cyan);
+        drawTextCentered("NEXT >", px + pw - 68, ay + 17, 0.29f, cyan);
+        const Color actionColor = equipped ? green : owned ? cyan : canBuy ? gold : Color{0.55f,0.58f,0.63f,1.0f};
+        drawPanel(px + 130, ay, pw - 260, 58, {0.035f,0.10f,0.13f,1.0f}, actionColor);
+        const std::string action = equipped ? "EQUIPPED" : owned ? "EQUIP CAR" : !levelOk ?
+            "LEVEL " + std::to_string(Game::carLevelReq(cur)) + " NEEDED" :
+            canBuy ? "BUY CAR" : "NOT ENOUGH COINS";
+        drawTextCentered(action, px + pw * 0.5f, ay + 17, 0.30f, actionColor);
+        // Stats stay near the 3D car, leaving the model visible.
+        const float sw = std::min(350.0f, w - pw - 85.0f);
+        const float sx = w - sw - 22.0f, sy = h - 255.0f;
+        drawPanel(sx, sy, sw, 155, {0.012f,0.025f,0.04f,0.93f}, gold);
+        drawTextCentered(Game::carName(cur), sx + sw * 0.5f, sy + 10, 0.41f, gold);
+        const float vals[3] = {
+            std::clamp((Game::carSpeed(cur)-0.85f)/0.95f,0.0f,1.0f),
+            std::clamp((Game::carGrip(cur)-0.75f)/0.50f,0.0f,1.0f),
+            std::clamp((1.40f-Game::carArmor(cur))/0.75f,0.0f,1.0f)
+        };
+        const char* labels[3] = {"SPEED", "GRIP", "ARMOR"};
+        for (int i=0;i<3;++i) {
+            drawText(labels[i], sx + 15, sy + 52 + i*30, 0.22f, labelColor);
+            drawSegBar(sx + 110, sy + 49 + i*30, sw - 130, 18, vals[i], 10, cyan, {0.07f,0.12f,0.16f,1.0f});
         }
-
-        // уровень игрока и шкала опыта
-        {
-            const int need = std::max(1, game.xpForNextLevel());
-
-            drawTextCentered("LEVEL " + std::to_string(game.level()), centerX, my0 + 374.0f, 0.36f, { 0.55f, 0.90f, 1.0f, 1.0f });
-
-            drawSegBar(
-                centerX - 130.0f, my0 + 412.0f, 260.0f, 16.0f,
-                static_cast<float>(game.xpInLevel()) / static_cast<float>(need),
-                20,
-                { 0.30f, 0.80f, 1.0f, 1.0f },
-                { 0.08f, 0.11f, 0.14f, 0.95f }
-            );
-
-            drawTextCentered(
-                std::to_string(game.xpInLevel()) + " OF " + std::to_string(need) + " XP",
-                centerX, my0 + 434.0f, 0.18f, { 0.65f, 0.78f, 0.85f, 1.0f }
-            );
-        }
-
-        drawTextCentered("ENTER START", centerX, my0 + 472.0f, 0.60f, { 0.80f, 0.95f, 0.85f, blink });
-        drawTextCentered("G GARAGE   H ACHIEVEMENTS   O SETTINGS", centerX, my0 + 530.0f, 0.30f, { 0.42f, 0.85f, 1.0f, 1.0f });
-
-        drawTextCentered("A D LANES   W SPEED   S BRAKE   SHIFT BOOST", centerX, my0 + 580.0f, 0.22f, { 0.70f, 0.76f, 0.80f, 0.95f });
+        drawTextCentered("PRICE " + std::to_string(Game::carCost(cur)) + "  |  LEVEL " + std::to_string(Game::carLevelReq(cur)),
+                         sx + sw * 0.5f, sy + 134, 0.18f, labelColor);
     }
 
-    // ---- Гараж ----
-    if (game.state() == GameState::Garage) {
+    if (game.state() == GameState::Garage && game.garageTab() == 1) {
         const float pw = 760.0f;
         const float ph = 560.0f;
         const float px0 = 24.0f;
@@ -4031,6 +4156,8 @@ void Renderer::renderHud(const Game& game)
 
         drawPanel(px0, py0, pw, ph, { 0.015f, 0.022f, 0.030f, 0.96f }, { 0.42f, 0.85f, 1.0f, 0.9f });
 
+        drawPanel(36.0f, 167.0f, 274.0f, 48.0f, {0.02f,0.10f,0.16f,1.0f}, {0.22f,0.82f,1.0f,1.0f});
+        drawTextCentered("CARS", 173.0f, 178.0f, 0.35f, {0.22f,0.82f,1.0f,1.0f});
         drawTextCentered("GARAGE", pcx, py0 + 18.0f, 0.80f, { 0.42f, 0.85f, 1.0f, 1.0f });
         drawTextCentered("COINS " + std::to_string(game.bank()), pcx, py0 + 70.0f, 0.42f, { 1.0f, 0.88f, 0.28f, 1.0f });
 
@@ -4148,7 +4275,7 @@ void Renderer::renderHud(const Game& game)
             drawTextCentered(line, pcx, swY + 78.0f, 0.24f, lc);
         }
 
-        drawTextCentered("1 2 3 4 UPGRADE   ARROWS ENTER PAINT   G BACK", pcx, py0 + ph - 34.0f, 0.22f, { 0.80f, 0.90f, 0.95f, 1.0f });
+        drawTextCentered("1 2 3 4 UPGRADE   ARROWS ENTER PAINT   ESC BACK", pcx, py0 + ph - 34.0f, 0.22f, { 0.80f, 0.90f, 0.95f, 1.0f });
 
         // ---- выбор машины: панель справа поверх превью ----
         {
@@ -4161,13 +4288,13 @@ void Renderer::renderHud(const Game& game)
 
             drawPanel(ix, iy, iw, ih, { 0.015f, 0.022f, 0.030f, 0.90f }, { 1.0f, 0.78f, 0.20f, 0.90f });
 
-            drawTextCentered(Game::carName(cur), icx, iy + 12.0f, 0.46f, { 1.0f, 0.83f, 0.22f, 1.0f });
-            drawTextCentered("CAR " + std::to_string(cur + 1) + " OF " + std::to_string(kCarCount), icx, iy + 44.0f, 0.18f, { 0.65f, 0.72f, 0.78f, 1.0f });
+            drawTextCentered(Game::carName(cur), icx, iy + 12.0f, 0.42f, { 1.0f, 0.83f, 0.22f, 1.0f });
+            drawTextCentered("<    CAR " + std::to_string(cur + 1) + " / " + std::to_string(kCarCount) + "    >", icx, iy + 44.0f, 0.22f, { 0.65f, 0.72f, 0.78f, 1.0f });
 
             const float vals[3] = {
-                std::clamp((Game::carSpeed(cur) - 0.85f) / 0.25f, 0.0f, 1.0f),
-                std::clamp((Game::carGrip(cur) - 0.80f) / 0.40f, 0.0f, 1.0f),
-                std::clamp((1.20f - Game::carArmor(cur)) / 0.70f, 0.0f, 1.0f)
+                std::clamp((Game::carSpeed(cur) - 0.85f) / 0.95f, 0.0f, 1.0f),
+                std::clamp((Game::carGrip(cur) - 0.75f) / 0.50f, 0.0f, 1.0f),
+                std::clamp((1.40f - Game::carArmor(cur)) / 0.75f, 0.0f, 1.0f)
             };
             const char* labels[3] = { "SPEED", "GRIP", "ARMOR" };
 
@@ -4186,14 +4313,14 @@ void Renderer::renderHud(const Game& game)
                 sc = { 0.35f, 1.0f, 0.50f, 1.0f };
             }
             else if (game.carUnlocked(cur)) {
-                status = "SPACE EQUIP";
+                status = "CLICK / SPACE EQUIP";
             }
             else if (game.level() < Game::carLevelReq(cur)) {
                 status = "NEED LEVEL " + std::to_string(Game::carLevelReq(cur));
                 sc = { 0.80f, 0.30f, 0.25f, 1.0f };
             }
             else if (game.bank() >= Game::carCost(cur)) {
-                status = "SPACE BUY " + std::to_string(Game::carCost(cur));
+                status = "CLICK / SPACE BUY " + std::to_string(Game::carCost(cur));
                 sc = { 1.0f, 0.88f, 0.28f, 1.0f };
             }
             else {
@@ -4210,7 +4337,7 @@ void Renderer::renderHud(const Game& game)
                 );
             }
 
-            drawTextCentered("Q E CHOOSE CAR", icx, iy + 212.0f, 0.18f, { 0.80f, 0.90f, 0.95f, 1.0f });
+            drawTextCentered("CLICK < > OR Q E TO BROWSE", icx, iy + 212.0f, 0.18f, { 0.80f, 0.90f, 0.95f, 1.0f });
         }
     }
 
@@ -4260,7 +4387,7 @@ void Renderer::renderHud(const Game& game)
             );
         }
 
-        drawTextCentered("UP DOWN SELECT   LEFT RIGHT CHANGE   O BACK", centerX, py0 + ph - 44.0f, 0.22f, { 0.80f, 0.90f, 0.95f, 1.0f });
+        drawTextCentered("UP DOWN SELECT   LEFT RIGHT CHANGE   ESC BACK", centerX, py0 + ph - 44.0f, 0.22f, { 0.80f, 0.90f, 0.95f, 1.0f });
     }
 
     // ---- Достижения ----
@@ -4311,7 +4438,17 @@ void Renderer::renderHud(const Game& game)
             }
         }
 
-        drawTextCentered("H BACK", centerX, py0 + ph - 36.0f, 0.30f, { 0.80f, 0.90f, 0.95f, 1.0f });
+        drawTextCentered("ESC OR BACK BUTTON", centerX, py0 + ph - 36.0f, 0.30f, { 0.80f, 0.90f, 0.95f, 1.0f });
+    }
+
+    if (game.state() == GameState::Garage || game.state() == GameState::Settings ||
+        game.state() == GameState::Achievements)
+    {
+        drawPanel(w - 205.0f, 24.0f, 180.0f, 54.0f,
+                  { 0.025f, 0.065f, 0.10f, 0.98f },
+                  { 0.30f, 0.88f, 1.0f, 1.0f });
+        drawTextCentered("< BACK", w - 115.0f, 37.0f, 0.38f,
+                         { 0.92f, 0.97f, 1.0f, 1.0f });
     }
 
     glLineWidth(1.0f);

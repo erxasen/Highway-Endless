@@ -35,11 +35,11 @@ namespace {
     constexpr int kPaintCosts[kPaintCount] = { 0, 75, 75, 100, 125, 150 };
 
     // Машины игрока: SPORT, COUPE, SEDAN, VAN
-    constexpr int kCarCosts[kCarCount] = { 0, 750, 600, 1500 };
-    constexpr int kCarLevels[kCarCount] = { 1, 2, 3, 5 };
-    constexpr float kCarSpeed[kCarCount] = { 1.00f, 1.04f, 0.96f, 0.92f };
-    constexpr float kCarGrip[kCarCount] = { 1.00f, 1.12f, 1.00f, 0.90f };
-    constexpr float kCarArmor[kCarCount] = { 1.00f, 1.05f, 0.80f, 0.62f };   // множитель урона
+    constexpr int kCarCosts[kCarCount] = { 0, 8000, 20000, 45000, 90000, 180000 };
+    constexpr int kCarLevels[kCarCount] = { 1, 2, 3, 5, 8, 12 };
+    constexpr float kCarSpeed[kCarCount] = { 1.00f, 1.13f, 1.27f, 1.40f, 1.57f, 1.75f };
+    constexpr float kCarGrip[kCarCount] = { 1.00f, 1.04f, 1.20f, 0.84f, 1.12f, 1.07f };
+    constexpr float kCarArmor[kCarCount] = { 1.00f, 1.08f, 1.12f, 0.73f, 1.28f, 1.20f };   // множитель урона
 
     // Трассы: HIGHWAY, DESERT, SNOW
     constexpr int kTrackLevels[kTrackCount] = { 1, 3, 6 };
@@ -506,6 +506,21 @@ void Game::reset()
 {
     state_ = GameState::Running;
 
+    trafficSpawnSequence_ = 0;
+    player2Lane_ = 2;
+    player2X_ = laneCenter(2);
+    player2Z_ = 4.0f;
+    player2Yaw_ = 0.0f;
+    player2Speed_ = 28.0f;
+    player2Distance_ = 0.0f;
+    player2Boost_ = 100.0f;
+    player2Health_ = 100.0f;
+    player2Invulnerability_ = 0.0f;
+    player2LeftWasDown_ = false;
+    player2RightWasDown_ = false;
+    player2Throttle_ = false;
+    player2Brake_ = false;
+    player2Nitro_ = false;
     playerX_ = laneCenter(1);
     playerZ_ = 4.0f;
     playerYaw_ = 0.0f;
@@ -605,6 +620,7 @@ void Game::handleInput(GLFWwindow* window, float dt)
         pressedOnce(window, GLFW_KEY_Q, timeWarpKeyWasDown_);
 
     if (state_ == GameState::Running &&
+        gameMode_ == GameMode::SinglePlayer &&
         timeWarpPressed &&
         timeWarpTimer_ <= 0.0f &&
         timeWarpCooldown_ <= 0.0f)
@@ -615,9 +631,152 @@ void Game::handleInput(GLFWwindow* window, float dt)
     }
 
 
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+    const bool chooseSingle = pressedOnce(window, GLFW_KEY_1, mode1WasDown_);
+    const bool chooseBattle = pressedOnce(window, GLFW_KEY_2, mode2WasDown_);
+    if (state_ == GameState::Menu)
+    {
+        if (chooseSingle) { selectedGameMode_ = GameMode::SinglePlayer; multiplayerPending_ = false; }
+        if (chooseBattle) { selectedGameMode_ = GameMode::TwoPlayerBattle; multiplayerPending_ = false; }
+    }
+
+    // Main home screen: buttons and hit areas share a single responsive layout.
+    const bool mouseDown = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+    const bool mouseClicked = mouseDown && !menuMouseWasDown_;
+    menuMouseWasDown_ = mouseDown;
+    if (state_ == GameState::Menu && mouseClicked)
+    {
+        double cursorX = 0.0, cursorY = 0.0;
+        int winW = 1, winH = 1, fbW = 1, fbH = 1;
+        glfwGetCursorPos(window, &cursorX, &cursorY);
+        glfwGetWindowSize(window, &winW, &winH);
+        glfwGetFramebufferSize(window, &fbW, &fbH);
+        const float x = static_cast<float>(cursorX * fbW / std::max(1, winW));
+        const float y = static_cast<float>(cursorY * fbH / std::max(1, winH));
+        const float scale = std::min(static_cast<float>(fbW) / 1600.0f,
+                                     static_cast<float>(fbH) / 900.0f);
+        const float panelX = 62.0f * scale;
+        const float panelY = 165.0f * scale;
+        const float buttonX = panelX + 24.0f * scale;
+        const float buttonW = 490.0f * scale;
+        const auto hit = [&](float yOffset, float height) {
+            return x >= buttonX && x <= buttonX + buttonW &&
+                   y >= panelY + yOffset * scale && y <= panelY + (yOffset + height) * scale;
+        };
+        if (hit(105.0f, 75.0f))
+        {
+            selectedGameMode_ = GameMode::SinglePlayer;
+            gameMode_ = GameMode::SinglePlayer;
+            multiplayerPending_ = false;
+            reset();
+        }
+        else if (hit(194.0f, 75.0f))
+        {
+            selectedGameMode_ = GameMode::TwoPlayerBattle;
+            gameMode_ = GameMode::TwoPlayerBattle;
+            multiplayerPending_ = false;
+            reset();
+        }
+        else if (hit(296.0f, 59.0f))
+        {
+            garageReturn_ = GameState::Menu;
+            state_ = GameState::Garage;
+            paintCursor_ = selectedPaint_;
+            carCursor_ = selectedCar_;
+            garageTab_ = 0;
+        }
+        else if (hit(366.0f, 59.0f))
+        {
+            state_ = GameState::Achievements;
+        }
+        else if (hit(436.0f, 59.0f))
+        {
+            settingsReturn_ = GameState::Menu;
+            state_ = GameState::Settings;
+        }
+        else if (hit(506.0f, 59.0f))
+        {
+            glfwSetWindowShouldClose(window, GLFW_TRUE);
+        }
+    }
+
+    // Clickable garage tabs, car list, navigation and purchase/equip.
+    if (state_ == GameState::Garage && mouseClicked)
+    {
+        double mx = 0.0, my = 0.0;
+        int ww = 1, wh = 1, fw = 1, fh = 1;
+        glfwGetCursorPos(window, &mx, &my);
+        glfwGetWindowSize(window, &ww, &wh);
+        glfwGetFramebufferSize(window, &fw, &fh);
+        const float x = static_cast<float>(mx * fw / std::max(1, ww));
+        const float y = static_cast<float>(my * fh / std::max(1, wh));
+        const float panelW = std::min(590.0f, fw * 0.44f);
+        const float panelX = 20.0f;
+        const float panelY = 95.0f;
+        const auto hit = [&](float bx, float by, float bw, float bh) {
+            return x >= bx && x <= bx + bw && y >= by && y <= by + bh;
+        };
+        if (hit(panelX + 16, panelY + 72, (panelW - 42) * 0.5f, 48))
+            garageTab_ = 0;
+        else if (hit(panelX + 26 + (panelW - 42) * 0.5f, panelY + 72,
+                     (panelW - 42) * 0.5f, 48))
+            garageTab_ = 1;
+        else if (garageTab_ == 0)
+        {
+            const float rowY = panelY + 137.0f;
+            const float rowH = std::min(67.0f, (fh - rowY - 160.0f) / 6.0f);
+            for (int i = 0; i < kCarCount; ++i)
+                if (hit(panelX + 18, rowY + i * rowH, panelW - 36, rowH - 5))
+                    carCursor_ = i;
+            const float actionY = static_cast<float>(fh) - 88.0f;
+            if (hit(panelX + 18, actionY, 100.0f, 58.0f))
+                carCursor_ = (carCursor_ + kCarCount - 1) % kCarCount;
+            else if (hit(panelX + panelW - 118, actionY, 100.0f, 58.0f))
+                carCursor_ = (carCursor_ + 1) % kCarCount;
+            else if (hit(panelX + 130, actionY, panelW - 260, 58.0f))
+                applyCar(carCursor_);
+        }
+    }
+
+    // Universal BACK: mouse button in every sub-menu or Escape.
+    const bool subMenu = state_ == GameState::Garage ||
+                         state_ == GameState::Settings ||
+                         state_ == GameState::Achievements;
+    bool backClicked = false;
+    if (subMenu && mouseClicked)
+    {
+        double mx = 0.0, my = 0.0;
+        int ww = 1, wh = 1, fw = 1, fh = 1;
+        glfwGetCursorPos(window, &mx, &my);
+        glfwGetWindowSize(window, &ww, &wh);
+        glfwGetFramebufferSize(window, &fw, &fh);
+        const float x = static_cast<float>(mx * fw / std::max(1, ww));
+        const float y = static_cast<float>(my * fh / std::max(1, wh));
+        // Consistent upper-right BACK button in every submenu.
+        backClicked = x >= fw - 205.0f && x <= fw - 25.0f &&
+                      y >= 24.0f && y <= 78.0f;
+    }
+    const bool escapePressed = pressedOnce(window, GLFW_KEY_ESCAPE, escapeWasDown_);
+    if (backClicked || (escapePressed && subMenu))
+    {
+        if (state_ == GameState::Garage) state_ = garageReturn_;
+        else if (state_ == GameState::Achievements) state_ = achReturn_;
+        else if (state_ == GameState::Settings)
+        {
+            state_ = settingsReturn_;
+            saveSettings();
+        }
+    }
+    else if (escapePressed && state_ == GameState::Menu)
     {
         glfwSetWindowShouldClose(window, GLFW_TRUE);
+    }
+    else if (escapePressed && state_ == GameState::Running)
+    {
+        state_ = GameState::Paused;
+    }
+    else if (escapePressed && state_ == GameState::Paused)
+    {
+        state_ = GameState::Running;
     }
 
     if (pressedOnce(window, GLFW_KEY_P, pauseWasDown_))
@@ -802,7 +961,18 @@ void Game::handleInput(GLFWwindow* window, float dt)
         }
         else if (state_ == GameState::Menu && paintApply)
         {
-            reset();
+            if (selectedGameMode_ == GameMode::SinglePlayer)
+            {
+                gameMode_ = GameMode::SinglePlayer;
+                multiplayerPending_ = false;
+                reset();
+            }
+            else
+            {
+                gameMode_ = GameMode::TwoPlayerBattle;
+                multiplayerPending_ = false;
+                reset();
+            }
         }
     }
 
@@ -811,12 +981,24 @@ void Game::handleInput(GLFWwindow* window, float dt)
         return;
     }
 
+    if (gameMode_ == GameMode::TwoPlayerBattle)
+    {
+        if (pressedOnce(window, GLFW_KEY_LEFT, player2LeftWasDown_))
+            player2Lane_ = std::max(0, player2Lane_ - 1);
+        if (pressedOnce(window, GLFW_KEY_RIGHT, player2RightWasDown_))
+            player2Lane_ = std::min(2, player2Lane_ + 1);
+        player2Throttle_ = glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS;
+        player2Brake_ = glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS;
+        player2Nitro_ = glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS ||
+            glfwGetKey(window, GLFW_KEY_KP_0) == GLFW_PRESS;
+    }
+
     const bool leftPressed =
-        pressedOnce(window, GLFW_KEY_LEFT, leftWasDown_) ||
+        (gameMode_ == GameMode::SinglePlayer && pressedOnce(window, GLFW_KEY_LEFT, leftWasDown_)) ||
         pressedOnce(window, GLFW_KEY_A, aWasDown_);
 
     const bool rightPressed =
-        pressedOnce(window, GLFW_KEY_RIGHT, rightWasDown_) ||
+        (gameMode_ == GameMode::SinglePlayer && pressedOnce(window, GLFW_KEY_RIGHT, rightWasDown_)) ||
         pressedOnce(window, GLFW_KEY_D, dWasDown_);
 
     if (leftPressed && !rightPressed)
@@ -831,19 +1013,19 @@ void Game::handleInput(GLFWwindow* window, float dt)
 
     throttle_ =
         (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ||
-            glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
+            (gameMode_ == GameMode::SinglePlayer && glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS))
         ? 1.0f
         : 0.0f;
 
     brake_ =
         (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS ||
-            glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
+            (gameMode_ == GameMode::SinglePlayer && glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS))
         ? 1.0f
         : 0.0f;
 
     const bool boostPressed =
         glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
-        glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
+        (gameMode_ == GameMode::SinglePlayer && glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS);
 
     boosting_ =
         boostPressed &&
@@ -912,6 +1094,30 @@ void Game::update(float dt)
         );
     }
 
+
+    if (gameMode_ == GameMode::TwoPlayerBattle)
+    {
+        player2Invulnerability_ = std::max(0.0f, player2Invulnerability_ - dt);
+        const bool boost2 = player2Nitro_ && player2Boost_ > 0.5f && player2Speed_ > 20.0f;
+        player2Boost_ = std::clamp(player2Boost_ + (boost2 ? -31.0f : 9.0f) * dt, 0.0f, 100.0f);
+        const float engine2 = static_cast<float>(upgrades_[0]);
+        const float wet2 = rain() * (1.0f - 0.15f * static_cast<float>(upgrades_[1]));
+        const float targetCruise2 = baseCruiseSpeed_ + difficulty_ * 2.1f;
+        float target2 = targetCruise2 + (player2Throttle_ ? 12.0f + engine2 : 0.0f)
+            + (boost2 ? 18.0f : 0.0f)
+            - (player2Brake_ ? 22.0f * (1.0f - 0.4f * wet2) : 0.0f);
+        const float max2 = (maxSpeed_ + (boost2 ? 15.0f : 0.0f) +
+            1.5f * engine2) * carSpeed(selectedCar_);
+        target2 = std::clamp(target2, 14.0f, max2);
+        const float response2 = target2 > player2Speed_
+            ? 2.2f * (1.0f + 0.08f * engine2) * (1.0f - 0.15f * wet2)
+            : 4.8f * (1.0f - 0.40f * wet2);
+        player2Speed_ = approach(player2Speed_, target2, response2, dt);
+        const float previousX = player2X_;
+        player2X_ = approach(player2X_, laneCenter(player2Lane_), 8.5f * carGrip(selectedCar_), dt);
+        player2Yaw_ = approach(player2Yaw_, std::clamp(-(player2X_ - previousX) / std::max(dt, 0.0001f) * 1.35f, -12.0f, 12.0f), 8.0f, dt);
+        player2Distance_ += player2Speed_ * dt;
+    }
 
     worldTime_ += dt;
 
@@ -987,6 +1193,8 @@ void Game::update(float dt)
     roadOffset_ += speed_ * dt;
 
     distance_ += speed_ * dt;
+    if (gameMode_ == GameMode::TwoPlayerBattle)
+        player2Z_ = playerZ_ + distance_ - player2Distance_;
 
     // бонус монетами за каждые 2000 м пути
     if (milestoneTimer_ > 0.0f)
@@ -1025,6 +1233,8 @@ void Game::update(float dt)
     if (trafficTimer_ >= trafficInterval_)
     {
         spawnTraffic();
+        if (gameMode_ == GameMode::TwoPlayerBattle && std::abs(player2Z_ - playerZ_) > 50.0f)
+            spawnTraffic();
         trafficTimer_ = 0.0f;
     }
 
@@ -1100,6 +1310,9 @@ void Game::update(float dt)
 
         audio_.setSkid(skidding ? 1.0f : 0.0f);
     }
+    if (gameMode_ == GameMode::TwoPlayerBattle && health_ <= 0.0f && player2Health_ <= 0.0f)
+        state_ = GameState::GameOver;
+
 }
 
 void Game::updateChase(float dt)
@@ -1165,7 +1378,7 @@ void Game::updateChase(float dt)
             boost_ = std::min(100.0f, boost_ + 40.0f);
             audio_.playAchievement();
         }
-        else if (policeGap_ <= 0.0f)
+        else if (policeGap_ <= 0.0f && gameMode_ != GameMode::TwoPlayerBattle)
         {
             // поймали
             busted_ = true;
@@ -1223,7 +1436,10 @@ void Game::spawnTraffic()
 
     vehicle.lane = lane;
     vehicle.x = laneCenter(lane);
-    vehicle.z = kSpawnZ;
+    // Spawn ahead of the leading player in Player 1's coordinate frame.
+    const bool battle = gameMode_ == GameMode::TwoPlayerBattle;
+    const bool spawnForP2 = battle && (trafficSpawnSequence_++ % 2 == 1);
+    vehicle.z = (spawnForP2 ? player2Z_ : playerZ_) - 150.0f;
 
     vehicle.color = kTrafficColors[colorDist_(rng_)];
 
@@ -1287,6 +1503,19 @@ void Game::spawnTraffic()
 
     vehicle.drift = driftDist(rng_);
 
+    if (traffic_.size() >= 110u)
+    {
+        auto farthest = traffic_.end();
+        float worst = -1.0f;
+        for (auto it = traffic_.begin(); it != traffic_.end(); ++it)
+        {
+            const float nearest = gameMode_ == GameMode::TwoPlayerBattle
+                ? std::min(std::abs(it->z - playerZ_), std::abs(it->z - player2Z_))
+                : std::abs(it->z - playerZ_);
+            if (nearest > worst) { worst = nearest; farthest = it; }
+        }
+        if (farthest != traffic_.end()) traffic_.erase(farthest);
+    }
     traffic_.push_back(vehicle);
 }
 
@@ -1353,9 +1582,11 @@ void Game::updateTraffic(float dt)
         std::remove_if(
             traffic_.begin(),
             traffic_.end(),
-            [](const TrafficVehicle& vehicle)
+            [this](const TrafficVehicle& vehicle)
             {
-                return vehicle.z > kRemoveZ;
+                const float trailingZ = gameMode_ == GameMode::TwoPlayerBattle
+                    ? std::max(playerZ_, player2Z_) : playerZ_;
+                return vehicle.z > trailingZ + 45.0f;
             }
         ),
         traffic_.end()
@@ -1455,6 +1686,70 @@ void Game::awardNearMiss(TrafficVehicle& vehicle)
 
 void Game::checkCollisions()
 {
+    if (gameMode_ == GameMode::TwoPlayerBattle && player2Health_ > 0.0f)
+    {
+        if (player2Invulnerability_ <= 0.0f)
+        {
+            for (auto& vehicle : traffic_)
+            {
+                const float oldP2Z = player2Z_ - (speed_ - player2Speed_) * 0.05f;
+                const float oldTrafficZ = vehicle.z - (speed_ + vehicle.relativeSpeed) * 0.05f;
+                const float halfDepth = (kPlayerLength * 0.72f + vehicle.length * 0.70f) * 0.5f;
+                const float previousGap = oldP2Z - oldTrafficZ;
+                const float currentGap = player2Z_ - vehicle.z;
+                const bool depthHit = std::abs(currentGap) < halfDepth ||
+                    (previousGap * currentGap <= 0.0f && std::abs(previousGap) < 9.0f);
+                const float widthFactor = (vehicle.type == TrafficType::Truck || vehicle.type == TrafficType::Bus) ? 0.76f : 0.72f;
+                if (overlaps(player2X_, kPlayerWidth * 0.76f, vehicle.x, vehicle.width * widthFactor) && depthHit)
+                {
+                    float damage = vehicle.type == TrafficType::Truck ? 55.0f :
+                        vehicle.type == TrafficType::Bus ? 50.0f :
+                        vehicle.type == TrafficType::Van ? 42.0f : 34.0f;
+                    damage *= 1.0f - 0.10f * static_cast<float>(upgrades_[2]);
+                    player2Health_ = std::max(0.0f, player2Health_ - damage * carArmor(selectedCar_));
+                    player2Speed_ *= 0.54f;
+                    player2Boost_ = std::max(0.0f, player2Boost_ - 28.0f);
+                    player2Invulnerability_ = 1.15f;
+                    vehicle.z = player2Z_ + 12.0f;
+                    audio_.playCrash();
+                    break;
+                }
+            }
+        }
+        // Player 2 must collide with road blocks independently of Player 1.
+        if (player2Invulnerability_ <= 0.0f)
+        {
+            for (auto& block : roadBlocks_)
+            {
+                if (block.hit) continue;
+                if (overlaps(player2X_, kPlayerWidth * 0.76f, block.x, 2.6f) &&
+                    overlaps(player2Z_, kPlayerLength * 0.72f, block.z, 1.4f))
+                {
+                    block.hit = true;
+                    player2Health_ = std::max(0.0f, player2Health_ - 28.0f *
+                        (1.0f - 0.10f * static_cast<float>(upgrades_[2])) * carArmor(selectedCar_));
+                    player2Speed_ *= 0.54f;
+                    player2Boost_ = std::max(0.0f, player2Boost_ - 28.0f);
+                    player2Invulnerability_ = 1.15f;
+                    audio_.playCrash();
+                    break;
+                }
+            }
+        }
+        if (player2Invulnerability_ <= 0.0f &&
+            overlaps(playerX_, kPlayerWidth, player2X_, kPlayerWidth) &&
+            overlaps(playerZ_, kPlayerLength, player2Z_, kPlayerLength))
+        {
+            player2Health_ = std::max(0.0f, player2Health_ - 20.0f);
+            health_ = std::max(0.0f, health_ - 20.0f);
+            player2Speed_ *= 0.7f;
+            speed_ *= 0.7f;
+            player2Invulnerability_ = 1.15f;
+            invulnerabilityTimer_ = 1.15f;
+            audio_.playCrash();
+        }
+    }
+
     if (invulnerabilityTimer_ > 0.0f)
     {
         return;
@@ -1537,7 +1832,7 @@ void Game::checkCollisions()
 
             vehicle.z += 7.0f;
 
-            if (health_ <= 0.0f)
+            if (health_ <= 0.0f && (gameMode_ != GameMode::TwoPlayerBattle || player2Health_ <= 0.0f))
             {
                 state_ = GameState::GameOver;
 
@@ -1591,7 +1886,8 @@ void Game::updateRoadBlocks(float dt)
 
         block.lane = lane;
         block.x = laneCenter(lane);
-        block.z = kSpawnZ;
+        block.z = (gameMode_ == GameMode::TwoPlayerBattle
+            ? std::min(playerZ_, player2Z_) : playerZ_) - 150.0f;
 
         roadBlocks_.push_back(block);
     }
@@ -1651,7 +1947,7 @@ void Game::updateRoadBlocks(float dt)
 
             invulnerabilityTimer_ = 1.15f;
 
-            if (health_ <= 0.0f)
+            if (health_ <= 0.0f && (gameMode_ != GameMode::TwoPlayerBattle || player2Health_ <= 0.0f))
             {
                 state_ = GameState::GameOver;
 
@@ -1926,10 +2222,12 @@ const char* Game::carName(int id)
 {
     switch (id)
     {
-    case 0: return "SPORT";
-    case 1: return "COUPE";
-    case 2: return "SEDAN";
-    case 3: return "VAN";
+    case 0: return "STREET FOX";
+    case 1: return "CRIMSON GT";
+    case 2: return "VORTEX R";
+    case 3: return "PHANTOM V8";
+    case 4: return "APEX X";
+    case 5: return "HYPERION Z";
     default: return "";
     }
 }
@@ -2186,6 +2484,11 @@ void Game::recordRun()
     {
         // статистика за всё время
         totalDistance_ += static_cast<int>(distance_);
+        // Distance and skill bonuses are awarded once per completed run.
+        bank_ += std::min(250, static_cast<int>(distance_ / 30.0f));
+        bank_ += std::min(90, maxCombo_ * 6);
+        bank_ += escapes_ * 25;
+        if (missionDone_) bank_ += 60;
         totalCoins_ += coins_;
         totalEscapes_ += escapes_;
         bestCombo_ = std::max(bestCombo_, maxCombo_);

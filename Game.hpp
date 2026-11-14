@@ -20,6 +20,11 @@ struct Color {
     float a = 1.0f;
 };
 
+enum class GameMode {
+    SinglePlayer,
+    TwoPlayerBattle
+};
+
 enum class GameState {
     Running,
     Paused,
@@ -40,7 +45,7 @@ constexpr int kTopCount = 5;
 constexpr int kPaintCount = 6;
 
 // машины игрока: SPORT (бесплатная), COUPE, SEDAN, VAN
-constexpr int kCarCount = 4;
+constexpr int kCarCount = 6;
 
 // достижения
 constexpr int kAchCount = 8;
@@ -149,6 +154,17 @@ public:
     void update(float dt);
 
     void reset();
+
+    GameMode gameMode() const { return gameMode_; }
+    GameMode selectedGameMode() const { return selectedGameMode_; }
+    bool multiplayerPending() const { return multiplayerPending_; }
+    float player2X() const { return player2X_; }
+    float player2Z() const { return player2Z_; }
+    float player2Yaw() const { return player2Yaw_; }
+    float player2SpeedKmh() const { return player2Speed_ * 7.2f; }
+    float player2Distance() const { return player2Distance_; }
+    float player2Boost() const { return player2Boost_; }
+    float player2Health() const { return player2Health_; }
 
     GameState state() const {
         return state_;
@@ -352,6 +368,8 @@ public:
     }
 
     // ---- Гараж ----
+    int garageTab() const { return garageTab_; }
+
     int bank() const {
         return bank_;
     }
@@ -571,6 +589,29 @@ private:
     void saveHighScore(int value) const;
 
 private:
+    GameMode gameMode_ = GameMode::SinglePlayer;
+    GameMode selectedGameMode_ = GameMode::SinglePlayer;
+    bool multiplayerPending_ = false;
+    float player2X_ = 3.35f;
+    float player2Z_ = 4.0f;
+    float player2Yaw_ = 0.0f;
+    float player2Speed_ = 28.0f;
+    float player2Distance_ = 0.0f;
+    float player2Boost_ = 100.0f;
+    float player2Health_ = 100.0f;
+    float player2Invulnerability_ = 0.0f;
+    int player2Lane_ = 2;
+    bool player2Throttle_ = false;
+    bool player2Brake_ = false;
+    bool player2Nitro_ = false;
+    unsigned int trafficSpawnSequence_ = 0;
+    bool player2LeftWasDown_ = false;
+    bool player2RightWasDown_ = false;
+    bool mode1WasDown_ = false;
+    bool mode2WasDown_ = false;
+    bool menuMouseWasDown_ = false;
+    bool escapeWasDown_ = false;
+
     GameState state_ =
         GameState::Running;
 
@@ -679,6 +720,7 @@ private:
     unsigned int carMask_ = 1u;
 
     int carCursor_ = 0;
+    int garageTab_ = 0;
 
     // выбранная трасса (открывается по уровню игрока)
     int selectedTrack_ = 0;
