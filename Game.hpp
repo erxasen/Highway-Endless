@@ -225,6 +225,28 @@ public:
         return boosting_;
     }
 
+
+    bool timeWarpActive() const {
+        return timeWarpTimer_ > 0.0f;
+    }
+
+    float timeWarpRemaining() const {
+        return timeWarpTimer_;
+    }
+
+    float timeWarpCooldownRemaining() const {
+        return timeWarpCooldown_;
+    }
+
+    float timeWarpDuration() const {
+        return kTimeWarpDuration;
+    }
+
+    float timeWarpRechargeDuration() const {
+        return kTimeWarpCooldown;
+    }
+
+
     // отметка пройденного пути (метры), за которую дали бонус; для надписи на экране
     int milestoneMeters() const {
         return milestoneMeters_;
@@ -573,6 +595,16 @@ private:
     float brake_ = 0.0f;
 
     float boost_ = 100.0f;
+
+
+    float timeWarpTimer_ = 0.0f;
+    float timeWarpCooldown_ = 0.0f;
+    bool timeWarpKeyWasDown_ = false;
+
+    static constexpr float kTimeWarpDuration = 4.0f;
+    static constexpr float kTimeWarpCooldown = 12.0f;
+    static constexpr float kTimeWarpFactor = 0.05f;
+
 
     bool boosting_ = false;
 

@@ -871,7 +871,50 @@ namespace {
             }
         }
 
-        glEnd();
+    }
+
+    // Helpers for vehicle details.
+    void drawRainBeads(const CarShape& shape, float width, float length, float height) {
+        beginAlpha();
+        for (int i = 0; i < 18; ++i) {
+            const float t = 0.18f + 0.035f * static_cast<float>(i);
+            const float x = (i % 3 - 1) * width * 0.19f;
+            const float y = carHullTop(shape, height, t) + 0.018f;
+            const float z = -length * 0.5f + t * length;
+            drawBox(x, y, z, 0.018f, 0.009f, 0.045f, { 0.72f, 0.86f, 1.0f, 0.45f });
+        }
+        endGlow();
+    }
+
+    void drawCarDetails(TrafficType type, const CarShape& shape,
+        float width, float length, float height, bool player) {
+        if (type == TrafficType::Truck || type == TrafficType::Bus) return;
+        const Color trim = { 0.045f, 0.05f, 0.06f, 1.0f };
+        const float side = width * 0.505f;
+        const float y = height * shape.belt * 0.62f;
+        for (int dir : {-1, 1}) {
+            drawBox(dir * side, y, length * 0.08f, 0.018f, 0.07f, length * 0.34f, trim);
+            drawBox(dir * side, y + 0.04f, -length * 0.12f, 0.022f, 0.045f, 0.16f,
+                player ? Color{ 0.75f, 0.78f, 0.85f, 1.0f } : trim);
+        }
+    }
+
+    void drawPlate(float x, float y, float z, float width, float height, unsigned int seed) {
+        drawBox(x, y, z, width, height, 0.015f, { 0.92f, 0.92f, 0.84f, 1.0f });
+        const float shift = static_cast<float>(seed % 7u) / 7.0f;
+        for (int i = 0; i < 4; ++i) {
+            drawBox(x - width * 0.30f + i * width * 0.20f,
+                y + (i % 2 ? shift : -shift) * height * 0.08f,
+                z + 0.009f, width * 0.08f, height * 0.44f, 0.008f,
+                { 0.09f, 0.12f, 0.17f, 1.0f });
+        }
+    }
+
+    void drawHeadlight(float x, float y, float z, float width, float height, bool player) {
+        drawBox(x, y, z, width, height, 0.05f, { 0.045f, 0.05f, 0.06f, 1.0f });
+        drawBox(x, y, z - 0.029f, width * 0.82f, height * 0.70f, 0.012f,
+            player ? Color{ 0.93f, 0.96f, 1.0f, 1.0f }
+        : Color{ 0.85f, 0.87f, 0.78f, 1.0f });
     }
 
     void drawCarModel(
@@ -1007,7 +1050,10 @@ namespace {
             if (player) {
                 const Color stripe = { 0.95f, 0.96f, 1.0f, 1.0f };
                 const float topY = bodyHeight * 1.05f + 0.006f;
-                const float roofY = bodyHeight + cabinHeight * 0.95f + 0.006f;
+                const float roofT = (shape.roofStart + shape.roofEnd) * 0.5f;
+                const CabinSec roof = cabinAt(shape, width, length, height, roofT);
+                const float roofY = roof.y0 + roof.ch + 0.006f;
+                const float cabinLength = (shape.roofEnd - shape.roofStart) * length;
 
                 drawBox(0.0f, topY, -length * 0.38f, width * 0.18f, 0.012f, length * 0.24f, stripe);
                 drawBox(0.0f, roofY, -length * 0.03f, width * 0.16f, 0.012f, cabinLength, stripe);
@@ -3594,7 +3640,87 @@ void Renderer::renderHud(const Game& game)
             { 0.08f, 0.11f, 0.14f, 0.95f }
         );
 
+        // ---- TIME WARP HUD ----
+        if (game.state() == GameState::Running) {
+            const bool warpActive = game.timeWarpActive();
+            const float warpTime = game.timeWarpRemaining();
+            const float cooldown = game.timeWarpCooldownRemaining();
+
+            const float warpX = static_cast<float>(w) - 265.0f;
+            const float warpY = static_cast<float>(h) - 95.0f;
+
+            const Color cyan = { 0.12f, 0.85f, 1.0f, 1.0f };
+            const Color green = { 0.30f, 1.0f, 0.55f, 1.0f };
+            const Color gray = { 0.55f, 0.65f, 0.72f, 1.0f };
+
+            Color accent = gray;
+            std::string status;
+            float progress = 0.0f;
+
+            if (warpActive) {
+                accent = cyan;
+                status = "TIME WARP ACTIVE";
+                progress = warpTime / game.timeWarpDuration();
+
+                drawEdgeGlow(w, h,
+                    { 0.0f, 0.65f, 1.0f, 0.12f });
+            }
+            else if (cooldown > 0.0f) {
+                accent = gray;
+                status = "RECHARGING " +
+                    std::to_string(static_cast<int>(
+                        std::ceil(cooldown))) + "S";
+
+                progress = 1.0f -
+                    cooldown / (game.timeWarpDuration() +
+                        game.timeWarpRechargeDuration());
+            }
+            else {
+                accent = green;
+                status = "TIME WARP READY";
+                progress = 1.0f;
+            }
+
+            progress = std::clamp(progress, 0.0f, 1.0f);
+
+            drawPanel(
+                warpX, warpY, 250.0f, 70.0f,
+                { 0.015f, 0.025f, 0.045f, 0.82f },
+                accent
+            );
+
+            drawText(
+                status,
+                warpX + 20.0f,
+                warpY + 12.0f,
+                0.30f,
+                accent
+            );
+
+            drawText(
+                "Q - TIME WARP",
+                warpX + 20.0f,
+                warpY + 39.0f,
+                0.20f,
+                { 0.70f, 0.85f, 0.95f, 1.0f }
+            );
+
+
+            drawSegBar(
+                warpX + 15.0f,
+                warpY + 49.0f,
+                220.0f,
+                8.0f,
+                progress,
+                16,
+                accent,
+                { 0.08f, 0.12f, 0.18f, 0.95f }
+            );
+
+        }
+
         // предупреждение о дорожных работах впереди
+
         bool blockAhead = false;
 
         for (const auto& block : game.roadBlocks()) {

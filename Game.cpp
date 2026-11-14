@@ -519,6 +519,12 @@ void Game::reset()
     boost_ = 100.0f;
     boosting_ = false;
 
+
+    timeWarpTimer_ = 0.0f;
+    timeWarpCooldown_ = 0.0f;
+    timeWarpKeyWasDown_ = false;
+
+
     health_ = 100.0f;
     invulnerabilityTimer_ = 0.0f;
 
@@ -593,7 +599,22 @@ bool Game::pressedOnce(GLFWwindow* window, int key, bool& previous)
 }
 
 void Game::handleInput(GLFWwindow* window, float dt)
-{
+{    
+
+    const bool timeWarpPressed =
+        pressedOnce(window, GLFW_KEY_Q, timeWarpKeyWasDown_);
+
+    if (state_ == GameState::Running &&
+        timeWarpPressed &&
+        timeWarpTimer_ <= 0.0f &&
+        timeWarpCooldown_ <= 0.0f)
+    {
+        timeWarpTimer_ = kTimeWarpDuration;
+        timeWarpCooldown_ =
+            kTimeWarpDuration + kTimeWarpCooldown;
+    }
+
+
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
     {
         glfwSetWindowShouldClose(window, GLFW_TRUE);
@@ -873,6 +894,24 @@ void Game::update(float dt)
     // защита от скачков: после подвисания окна машины не должны
     // пролетать сквозь игрока
     dt = std::min(dt, 0.05f);
+
+
+    if (timeWarpTimer_ > 0.0f)
+    {
+        timeWarpTimer_ = std::max(
+            0.0f,
+            timeWarpTimer_ - dt
+        );
+    }
+
+    if (timeWarpCooldown_ > 0.0f)
+    {
+        timeWarpCooldown_ = std::max(
+            0.0f,
+            timeWarpCooldown_ - dt
+        );
+    }
+
 
     worldTime_ += dt;
 
@@ -1272,21 +1311,36 @@ void Game::spawnCoinLine()
     }
 }
 
+
 void Game::updateTraffic(float dt)
 {
+    const bool warpActive = timeWarpTimer_ > 0.0f;
+
+    const float trafficDt =
+        warpActive ? dt * kTimeWarpFactor : dt;
+
     for (auto& vehicle : traffic_)
     {
-        vehicle.z += (speed_ + vehicle.relativeSpeed) * dt;
+        vehicle.z +=
+            (speed_ + vehicle.relativeSpeed) * trafficDt;
 
         const float desiredX = laneCenter(vehicle.lane);
 
-        vehicle.x = approach(vehicle.x, desiredX, 2.5f, dt);
+        vehicle.x = approach(
+            vehicle.x,
+            desiredX,
+            2.5f,
+            trafficDt
+        );
 
         vehicle.x +=
-            std::sin(worldTime_ * 0.8f + vehicle.z * 0.03f) *
-            vehicle.drift;
+            std::sin(
+                worldTime_ * 0.8f +
+                vehicle.z * 0.03f
+            ) * vehicle.drift;
 
-        if (!vehicle.scored && vehicle.z > playerZ_ + 4.0f)
+        if (!vehicle.scored &&
+            vehicle.z > playerZ_ + 4.0f)
         {
             vehicle.scored = true;
             scoreValue_ += 60.0f;
@@ -1307,6 +1361,7 @@ void Game::updateTraffic(float dt)
         traffic_.end()
     );
 }
+
 
 void Game::updatePickups(float dt)
 {
