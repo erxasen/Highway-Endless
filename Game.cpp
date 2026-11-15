@@ -5,7 +5,6 @@
 #include <GLFW/glfw3.h>
 
 #include "Game.hpp"
-
 #include <algorithm>
 #include <array>
 #include <cmath>
