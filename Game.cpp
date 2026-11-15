@@ -16,9 +16,7 @@ namespace {
 
     constexpr float kLaneWidth = 3.35f;
 
-    // 72 делится на шаги 12, 24 и 36 (разметка, деревья, фонари),
-    // поэтому сброс roadOffset_ не вызывает скачков.
-    constexpr float kRoadMarkerSpacing = 72.0f;
+              constexpr float kRoadMarkerSpacing = 72.0f;
 
     constexpr float kPlayerWidth = 1.55f;
 
@@ -28,34 +26,22 @@ namespace {
 
     constexpr float kRemoveZ = 24.0f;
 
-    // Цена улучшения: из уровня N в уровень N+1 стоит kUpgradeCosts[N] монет
-    constexpr int kUpgradeCosts[kMaxUpgradeLevel] = { 50, 100, 175, 275, 400 };
+         constexpr int kUpgradeCosts[kMaxUpgradeLevel] = { 50, 100, 175, 275, 400 };
 
-    // Покраска: цена каждого цвета (BLUE бесплатный)
-    constexpr int kPaintCosts[kPaintCount] = { 0, 75, 75, 100, 125, 150 };
+         constexpr int kPaintCosts[kPaintCount] = { 0, 75, 75, 100, 125, 150 };
 
-    // Машины игрока: SPORT, COUPE, SEDAN, VAN
-    constexpr int kCarCosts[kCarCount] = { 0, 8000, 20000, 45000, 90000, 180000 };
+         constexpr int kCarCosts[kCarCount] = { 0, 8000, 20000, 45000, 90000, 180000 };
     constexpr int kCarLevels[kCarCount] = { 1, 2, 3, 5, 8, 12 };
     constexpr float kCarSpeed[kCarCount] = { 1.00f, 1.13f, 1.27f, 1.40f, 1.57f, 1.75f };
     constexpr float kCarGrip[kCarCount] = { 1.00f, 1.04f, 1.20f, 0.84f, 1.12f, 1.07f };
-    constexpr float kCarArmor[kCarCount] = { 1.00f, 1.08f, 1.12f, 0.73f, 1.28f, 1.20f };   // множитель урона
-
-    // Трассы: HIGHWAY, DESERT, SNOW
-    constexpr int kTrackLevels[kTrackCount] = { 1, 3, 6 };
+    constexpr float kCarArmor[kCarCount] = { 1.00f, 1.08f, 1.12f, 0.73f, 1.28f, 1.20f };    
+         constexpr int kTrackLevels[kTrackCount] = { 1, 3, 6 };
     constexpr float kTrackScoreMul[kTrackCount] = { 1.00f, 1.15f, 1.30f };
 
-    // Достижения: цель и награда монетами
-    constexpr int kAchTargets[kAchCount] = { 20000, 200, 5, 15, 5000, 300, 5, 3 };
+         constexpr int kAchTargets[kAchCount] = { 20000, 200, 5, 15, 5000, 300, 5, 3 };
     constexpr int kAchRewards[kAchCount] = { 30, 30, 50, 40, 60, 40, 50, 80 };
 
-    // Полицейская погоня (метры позади игрока)
-    constexpr float kFirstChaseDelay = 35.0f;   // через сколько секунд первая погоня
-    constexpr float kChaseStartGap = 70.0f;     // с какого расстояния начинает полиция
-    constexpr float kChaseEscapeGap = 140.0f;   // оторвались, если расстояние больше
-    constexpr float kPoliceSpeedBonus = 6.0f;   // насколько полиция быстрее обычного хода
-    constexpr float kEscapeBonus = 1500.0f;     // очки за побег
-
+         constexpr float kFirstChaseDelay = 35.0f;        constexpr float kChaseStartGap = 70.0f;          constexpr float kChaseEscapeGap = 140.0f;        constexpr float kPoliceSpeedBonus = 6.0f;        constexpr float kEscapeBonus = 1500.0f;      
     const std::array<Color, 9> kTrafficColors = { {
         {0.92f, 0.13f, 0.14f, 1.0f},
         {0.95f, 0.56f, 0.10f, 1.0f},
@@ -69,13 +55,7 @@ namespace {
     } };
 
     const std::array<Color, kPaintCount> kPaintColors = { {
-        {0.04f, 0.42f, 1.00f, 1.0f},   // BLUE
-        {0.92f, 0.10f, 0.12f, 1.0f},   // RED
-        {0.10f, 0.72f, 0.30f, 1.0f},   // GREEN
-        {0.95f, 0.70f, 0.10f, 1.0f},   // GOLD
-        {0.50f, 0.22f, 0.85f, 1.0f},   // PURPLE
-        {0.08f, 0.08f, 0.10f, 1.0f}    // BLACK
-    } };
+        {0.04f, 0.42f, 1.00f, 1.0f},            {0.92f, 0.10f, 0.12f, 1.0f},            {0.10f, 0.72f, 0.30f, 1.0f},            {0.95f, 0.70f, 0.10f, 1.0f},            {0.50f, 0.22f, 0.85f, 1.0f},            {0.08f, 0.08f, 0.10f, 1.0f}         } };
 
     float approach(float current, float target, float speed, float dt) {
         const float t = std::clamp(speed * dt, 0.0f, 1.0f);
@@ -86,14 +66,11 @@ namespace {
         return std::abs(aCenter - bCenter) < (aSize + bSize) * 0.5f;
     }
 
-    // сколько опыта нужно, чтобы с уровня level перейти на следующий
-    int xpNeeded(int level) {
+         int xpNeeded(int level) {
         return 200 + 120 * (level - 1);
     }
 
-    // Единственная формула погоды: её использует и Game (управление),
-    // и Renderer (через Game::rain()).
-    float weatherRain(float t) {
+              float weatherRain(float t) {
         const float v = std::sin(t * 0.021f - 1.0f);
         return std::clamp((v - 0.2f) / 0.5f, 0.0f, 1.0f);
     }
@@ -116,8 +93,7 @@ Game::Game()
     applySettings();
     reset();
 
-    // игра стартует с главного меню; Enter или R начинает забег
-    state_ = GameState::Menu;
+         state_ = GameState::Menu;
 }
 
 Game::~Game()
@@ -285,19 +261,16 @@ void Game::loadGarage()
             file >> levels[i];
         }
 
-        // старые файлы без покраски: остаётся BLUE
-        if (!(file >> paint >> mask))
+                 if (!(file >> paint >> mask))
         {
             paint = 0;
             mask = 1;
         }
         else
         {
-            // старые файлы без опыта: начинаем с нуля
-            file >> xp;
+                         file >> xp;
 
-            // старые файлы без машин: остаётся SPORT
-            if (!(file >> carSel >> carBits))
+                         if (!(file >> carSel >> carBits))
             {
                 carSel = 0;
                 carBits = 1;
@@ -434,8 +407,7 @@ void Game::changeSetting(int id, int delta)
     applySettings();
     saveSettings();
 
-    // на общей громкости и эффектах сразу слышно пример
-    if (id == 0 || id == 2)
+         if (id == 0 || id == 2)
     {
         audio_.playCoin();
     }
@@ -490,13 +462,11 @@ float Game::rain() const
 
     if (selectedTrack_ == 1)
     {
-        // пустыня: дождя нет
-        weather = 0.0f;
+                 weather = 0.0f;
     }
     else if (selectedTrack_ == 2)
     {
-        // снежная трасса: всегда немного скользко
-        weather = std::max(weather, 0.35f);
+                 weather = std::max(weather, 0.35f);
     }
 
     return weather * (1.0f - tunnelInside());
@@ -576,8 +546,7 @@ void Game::reset()
     magnetTimer_ = 0.0f;
     powerPopupTimer_ = 0.0f;
 
-    // новое задание на каждый забег
-    {
+         {
         std::uniform_int_distribution<int> missionDist(0, 3);
         missionType_ = missionDist(rng_);
     }
@@ -639,8 +608,7 @@ void Game::handleInput(GLFWwindow* window, float dt)
         if (chooseBattle) { selectedGameMode_ = GameMode::TwoPlayerBattle; multiplayerPending_ = false; }
     }
 
-    // Main home screen: buttons and hit areas share a single responsive layout.
-    const bool mouseDown = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+         const bool mouseDown = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
     const bool mouseClicked = mouseDown && !menuMouseWasDown_;
     menuMouseWasDown_ = mouseDown;
     if (state_ == GameState::Menu && mouseClicked)
@@ -699,8 +667,7 @@ void Game::handleInput(GLFWwindow* window, float dt)
         }
     }
 
-    // Clickable garage tabs, car list, navigation and purchase/equip.
-    if (state_ == GameState::Garage && mouseClicked)
+         if (state_ == GameState::Garage && mouseClicked)
     {
         double mx = 0.0, my = 0.0;
         int ww = 1, wh = 1, fw = 1, fh = 1;
@@ -737,8 +704,7 @@ void Game::handleInput(GLFWwindow* window, float dt)
         }
     }
 
-    // Universal BACK: mouse button in every sub-menu or Escape.
-    const bool subMenu = state_ == GameState::Garage ||
+         const bool subMenu = state_ == GameState::Garage ||
                          state_ == GameState::Settings ||
                          state_ == GameState::Achievements;
     bool backClicked = false;
@@ -751,8 +717,7 @@ void Game::handleInput(GLFWwindow* window, float dt)
         glfwGetFramebufferSize(window, &fw, &fh);
         const float x = static_cast<float>(mx * fw / std::max(1, ww));
         const float y = static_cast<float>(my * fh / std::max(1, wh));
-        // Consistent upper-right BACK button in every submenu.
-        backClicked = x >= fw - 205.0f && x <= fw - 25.0f &&
+                 backClicked = x >= fw - 205.0f && x <= fw - 25.0f &&
                       y >= 24.0f && y <= 78.0f;
     }
     const bool escapePressed = pressedOnce(window, GLFW_KEY_ESCAPE, escapeWasDown_);
@@ -791,8 +756,7 @@ void Game::handleInput(GLFWwindow* window, float dt)
         }
     }
 
-    // R в гараже не сбрасывает забег, чтобы не нажать случайно
-    if (pressedOnce(window, GLFW_KEY_R, restartWasDown_))
+         if (pressedOnce(window, GLFW_KEY_R, restartWasDown_))
     {
         if (state_ != GameState::Garage && state_ != GameState::Achievements && state_ != GameState::Settings)
         {
@@ -800,8 +764,7 @@ void Game::handleInput(GLFWwindow* window, float dt)
         }
     }
 
-    // гараж: G открывает на паузе и после аварии, повторно закрывает
-    if (pressedOnce(window, GLFW_KEY_G, garageWasDown_))
+         if (pressedOnce(window, GLFW_KEY_G, garageWasDown_))
     {
         if (state_ == GameState::Paused || state_ == GameState::GameOver || state_ == GameState::Menu)
         {
@@ -816,8 +779,7 @@ void Game::handleInput(GLFWwindow* window, float dt)
         }
     }
 
-    // клавиши 1-4 покупают улучшения (состояние клавиш отслеживаем всегда)
-    const int upgradeKeys[kUpgradeCount] = {
+         const int upgradeKeys[kUpgradeCount] = {
         GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_4
     };
 
@@ -831,8 +793,7 @@ void Game::handleInput(GLFWwindow* window, float dt)
         }
     }
 
-    // трасса: T переключает на следующую открытую (в меню и после аварии)
-    if (pressedOnce(window, GLFW_KEY_T, trackKeyWasDown_))
+         if (pressedOnce(window, GLFW_KEY_T, trackKeyWasDown_))
     {
         if (state_ == GameState::Menu || state_ == GameState::GameOver)
         {
@@ -851,8 +812,7 @@ void Game::handleInput(GLFWwindow* window, float dt)
         }
     }
 
-    // достижения: H открывает на паузе, после аварии и в главном меню, повторно закрывает
-    if (pressedOnce(window, GLFW_KEY_H, achKeyWasDown_))
+         if (pressedOnce(window, GLFW_KEY_H, achKeyWasDown_))
     {
         if (state_ == GameState::Paused || state_ == GameState::GameOver || state_ == GameState::Menu)
         {
@@ -865,9 +825,7 @@ void Game::handleInput(GLFWwindow* window, float dt)
         }
     }
 
-    // настройки: O открывает на паузе, после аварии и в главном меню, повторно закрывает;
-    // стрелки вверх и вниз выбирают строку, влево и вправо меняют значение
-    {
+              {
         const bool open = pressedOnce(window, GLFW_KEY_O, settingsKeyWasDown_);
         const bool up = pressedOnce(window, GLFW_KEY_UP, setUpWasDown_);
         const bool down = pressedOnce(window, GLFW_KEY_DOWN, setDownWasDown_);
@@ -911,8 +869,7 @@ void Game::handleInput(GLFWwindow* window, float dt)
         }
     }
 
-    // выбор машины в гараже: Q и E листают, пробел покупает или выбирает
-    {
+         {
         const bool carPrev = pressedOnce(window, GLFW_KEY_Q, carPrevWasDown_);
         const bool carNext = pressedOnce(window, GLFW_KEY_E, carNextWasDown_);
         const bool carApply = pressedOnce(window, GLFW_KEY_SPACE, carApplyWasDown_);
@@ -936,8 +893,7 @@ void Game::handleInput(GLFWwindow* window, float dt)
         }
     }
 
-    // покраска: стрелки двигают курсор, Enter выбирает или покупает цвет
-    {
+         {
         const bool paintLeft = pressedOnce(window, GLFW_KEY_LEFT, paintLeftWasDown_);
         const bool paintRight = pressedOnce(window, GLFW_KEY_RIGHT, paintRightWasDown_);
         const bool paintApply = pressedOnce(window, GLFW_KEY_ENTER, paintApplyWasDown_);
@@ -1049,19 +1005,16 @@ void Game::changeLane(int direction)
 
 void Game::update(float dt)
 {
-    // забег закончился: один раз заносим результат в таблицу
-    if (state_ == GameState::GameOver && !runRecorded_ && gameMode_ != GameMode::TwoPlayerBattle)
+         if (state_ == GameState::GameOver && !runRecorded_ && gameMode_ != GameMode::TwoPlayerBattle)
     {
         recordRun();
     }
 
     if (state_ != GameState::Running)
     {
-        // пауза или авария: звук плавно затихает
-        if (state_ == GameState::Settings)
+                 if (state_ == GameState::Settings)
         {
-            // в настройках играет двигатель (на строке «окружение» ещё и дождь), чтобы слышать изменения
-            audio_.update(120.0f, false, settingsCursor_ == 3 ? 0.6f : 0.0f, 0.0f, true);
+                         audio_.update(120.0f, false, settingsCursor_ == 3 ? 0.6f : 0.0f, 0.0f, true);
         }
         else
         {
@@ -1073,9 +1026,7 @@ void Game::update(float dt)
         return;
     }
 
-    // защита от скачков: после подвисания окна машины не должны
-    // пролетать сквозь игрока
-    dt = std::min(dt, 0.05f);
+              dt = std::min(dt, 0.05f);
 
 
     if (timeWarpTimer_ > 0.0f)
@@ -1121,8 +1072,7 @@ void Game::update(float dt)
 
     worldTime_ += dt;
 
-    // 0 = сухо, 1 = сильный дождь (скользкая дорога); в туннеле сухо
-    const float rainLevel = rain();
+         const float rainLevel = rain();
 
     if (invulnerabilityTimer_ > 0.0f)
     {
@@ -1145,13 +1095,10 @@ void Game::update(float dt)
 
     const float boostExtra = boosting_ ? 18.0f : 0.0f;
 
-    // улучшения: 0 двигатель, 1 шины
-    const float engineLevel = static_cast<float>(upgrades_[0]);
+         const float engineLevel = static_cast<float>(upgrades_[0]);
     const float tiresLevel = static_cast<float>(upgrades_[1]);
 
-    // хорошие шины уменьшают потерю сцепления на мокрой дороге
-    // на масляном пятне дорога как в сильный ливень, плюс машину водит из стороны в сторону
-    const float slick = std::max(rainLevel, oilTimer_ > 0.0f ? 1.0f : 0.0f);
+              const float slick = std::max(rainLevel, oilTimer_ > 0.0f ? 1.0f : 0.0f);
 
     const float wet = slick * (1.0f - 0.15f * tiresLevel);
 
@@ -1159,8 +1106,7 @@ void Game::update(float dt)
 
     float targetSpeed = targetCruise + throttle_ * (12.0f + engineLevel) + boostExtra;
 
-    // на мокрой дороге тормоза слабее
-    targetSpeed -= brake_ * 22.0f * (1.0f - 0.4f * wet);
+         targetSpeed -= brake_ * 22.0f * (1.0f - 0.4f * wet);
 
     const float currentMaxSpeed =
         (maxSpeed_ + (boosting_ ? 15.0f : 0.0f) + 1.5f * engineLevel) * carSpeed(selectedCar_);
@@ -1178,8 +1124,7 @@ void Game::update(float dt)
 
     const float oldX = playerX_;
 
-    // на мокрой дороге машина медленнее перестраивается
-    playerX_ = approach(playerX_, targetX, 8.5f * (1.0f + 0.06f * tiresLevel) * carGrip(selectedCar_) * (1.0f - 0.45f * wet), dt);
+         playerX_ = approach(playerX_, targetX, 8.5f * (1.0f + 0.06f * tiresLevel) * carGrip(selectedCar_) * (1.0f - 0.45f * wet), dt);
 
     lateralVelocity_ = (playerX_ - oldX) / std::max(dt, 0.0001f);
 
@@ -1196,8 +1141,7 @@ void Game::update(float dt)
     if (gameMode_ == GameMode::TwoPlayerBattle)
         player2Z_ = playerZ_ + distance_ - player2Distance_;
 
-    // бонус монетами за каждые 2000 м пути
-    if (milestoneTimer_ > 0.0f)
+         if (milestoneTimer_ > 0.0f)
     {
         milestoneTimer_ -= dt;
     }
@@ -1283,8 +1227,7 @@ void Game::update(float dt)
 
     checkAchievements();
 
-    // сирена полиции: громче, когда полиция ближе
-    {
+         {
         float siren = 0.0f;
 
         if (state_ == GameState::Running)
@@ -1302,8 +1245,7 @@ void Game::update(float dt)
         audio_.setSiren(siren);
     }
 
-    // скрип шин: торможение на скорости, масляное пятно, резкая смена полосы
-    {
+         {
         const bool skidding =
             state_ == GameState::Running &&
             ((brake_ > 0.5f && speedKmh() > 120.0f) || oilTimer_ > 0.0f || std::abs(playerYaw_) > 7.5f);
@@ -1343,8 +1285,7 @@ void Game::updateChase(float dt)
 
     if (chaseState_ != ChaseState::Idle)
     {
-        // полицейская машина держится в вашей полосе
-        policeX_ = approach(policeX_, playerX_, 1.5f, dt);
+                 policeX_ = approach(policeX_, playerX_, 1.5f, dt);
     }
 
     switch (chaseState_)
@@ -1372,20 +1313,16 @@ void Game::updateChase(float dt)
 
     case ChaseState::Chasing:
     {
-        // полиция едет чуть быстрее обычного хода: без газа (W) и после
-        // аварий расстояние сокращается, с газом и бустом растёт
-        const float cruise = baseCruiseSpeed_ + difficulty_ * 2.1f;
+                          const float cruise = baseCruiseSpeed_ + difficulty_ * 2.1f;
         const float policeSpeed = std::min(cruise + kPoliceSpeedBonus, maxSpeed_ - 4.0f);
 
         policeGap_ += (speed_ - policeSpeed) * dt;
 
-        // за погоню идут дополнительные очки
-        scoreValue_ += speed_ * dt * 3.6f;
+                 scoreValue_ += speed_ * dt * 3.6f;
 
         if (policeGap_ >= kChaseEscapeGap)
         {
-            // оторвались
-            chaseState_ = ChaseState::Idle;
+                         chaseState_ = ChaseState::Idle;
 
             std::uniform_real_distribution<float> delayDist(45.0f, 75.0f);
             chaseTimer_ = delayDist(rng_);
@@ -1399,8 +1336,7 @@ void Game::updateChase(float dt)
         }
         else if (policeGap_ <= 0.0f && gameMode_ != GameMode::TwoPlayerBattle)
         {
-            // поймали
-            busted_ = true;
+                         busted_ = true;
             health_ = 0.0f;
             state_ = GameState::GameOver;
 
@@ -1455,8 +1391,7 @@ void Game::spawnTraffic()
 
     vehicle.lane = lane;
     vehicle.x = laneCenter(lane);
-    // Spawn ahead of the leading player in Player 1's coordinate frame.
-    const bool battle = gameMode_ == GameMode::TwoPlayerBattle;
+         const bool battle = gameMode_ == GameMode::TwoPlayerBattle;
     const bool spawnForP2 = battle && (trafficSpawnSequence_++ % 2 == 1);
     vehicle.z = (spawnForP2 ? player2Z_ : playerZ_) - 150.0f;
 
@@ -1466,11 +1401,7 @@ void Game::spawnTraffic()
 
     vehicle.type = static_cast<TrafficType>(type);
 
-    // relativeSpeed отрицательный: машина едет вперёд со своей скоростью
-    // (в среднем 6-11 м/с). Положительное значение означало бы езду задним
-    // ходом относительно земли. Минимальная скорость игрока 14 м/с, а самая
-    // быстрая машина едет не быстрее 13 м/с, поэтому машины не уезжают вперёд насовсем.
-    std::uniform_real_distribution<float> forwardSpeedDist(6.0f, 11.0f);
+                        std::uniform_real_distribution<float> forwardSpeedDist(6.0f, 11.0f);
 
     vehicle.relativeSpeed = -forwardSpeedDist(rng_);
 
@@ -1486,15 +1417,13 @@ void Game::spawnTraffic()
         vehicle.width = 1.62f;
         vehicle.length = 3.7f;
         vehicle.height = 0.88f;
-        vehicle.relativeSpeed -= 2.0f;   // спорткар едет быстрее остальных
-        break;
+        vehicle.relativeSpeed -= 2.0f;            break;
 
     case TrafficType::Truck:
         vehicle.width = 2.2f;
         vehicle.length = 6.1f;
         vehicle.height = 2.25f;
-        vehicle.relativeSpeed += 3.0f;   // грузовик медленнее
-        break;
+        vehicle.relativeSpeed += 3.0f;            break;
 
     case TrafficType::Van:
         vehicle.width = 1.9f;
@@ -1507,15 +1436,13 @@ void Game::spawnTraffic()
         vehicle.width = 2.3f;
         vehicle.length = 8.0f;
         vehicle.height = 2.6f;
-        vehicle.relativeSpeed += 4.0f;   // автобус самый медленный
-        break;
+        vehicle.relativeSpeed += 4.0f;            break;
 
     case TrafficType::Coupe:
         vehicle.width = 1.58f;
         vehicle.length = 3.55f;
         vehicle.height = 0.94f;
-        vehicle.relativeSpeed -= 1.0f;   // купе чуть быстрее седана
-        break;
+        vehicle.relativeSpeed -= 1.0f;            break;
     }
 
     std::uniform_real_distribution<float> driftDist(-0.08f, 0.08f);
@@ -1623,11 +1550,9 @@ void Game::updatePickups(float dt)
 
         if (!coin.collected)
         {
-            // улучшение «магнит» расширяет зону подбора монет
-            const float magnet = static_cast<float>(upgrades_[3]);
+                         const float magnet = static_cast<float>(upgrades_[3]);
 
-            // бонус «магнит» с дороги временно захватывает и соседние полосы
-            const float magnetBonusX = magnetTimer_ > 0.0f ? 2.6f : 0.0f;
+                         const float magnetBonusX = magnetTimer_ > 0.0f ? 2.6f : 0.0f;
             const float magnetBonusZ = magnetTimer_ > 0.0f ? 1.5f : 0.0f;
 
             const bool xHit = std::abs(playerX_ - coin.x) < 0.95f + 0.35f * magnet + magnetBonusX;
@@ -1735,8 +1660,7 @@ void Game::checkCollisions()
                 }
             }
         }
-        // Player 2 must collide with road blocks independently of Player 1.
-        if (player2Invulnerability_ <= 0.0f)
+                 if (player2Invulnerability_ <= 0.0f)
         {
             for (auto& block : roadBlocks_)
             {
@@ -1800,8 +1724,7 @@ void Game::checkCollisions()
 
         if (sameLaneSpace && sameDepthSpace)
         {
-            // щит гасит удар целиком: урона и потери скорости нет
-            if (shieldTimer_ > 0.0f)
+                         if (shieldTimer_ > 0.0f)
             {
                 shieldTimer_ = 0.0f;
 
@@ -1831,11 +1754,9 @@ void Game::checkCollisions()
 
             audio_.playCrash();
 
-            // улучшение «броня»: до половины урона на пятом уровне
-            damage *= 1.0f - 0.10f * static_cast<float>(upgrades_[2]);
+                         damage *= 1.0f - 0.10f * static_cast<float>(upgrades_[2]);
 
-            // прочность кузова выбранной машины
-            damage *= carArmor(selectedCar_);
+                         damage *= carArmor(selectedCar_);
 
             health_ = std::max(0.0f, health_ - damage);
 
@@ -1869,8 +1790,7 @@ void Game::checkCollisions()
 
 void Game::updateRoadBlocks(float dt)
 {
-    // новые дорожные работы: раз в 10-18 секунд, одна полоса из трёх
-    roadBlockTimer_ -= dt;
+         roadBlockTimer_ -= dt;
 
     if (roadBlockTimer_ <= 0.0f)
     {
@@ -1879,8 +1799,7 @@ void Game::updateRoadBlocks(float dt)
 
         int lane = laneDist_(rng_);
 
-        // не ставим барьер в полосу, где в дальней зоне уже едет машина
-        for (int attempt = 0; attempt < 3; ++attempt)
+                 for (int attempt = 0; attempt < 3; ++attempt)
         {
             bool busy = false;
 
@@ -1951,8 +1870,7 @@ void Game::updateRoadBlocks(float dt)
                 continue;
             }
 
-            // броня снижает урон так же, как при аварии с машиной
-            const float damage = 28.0f * (1.0f - 0.10f * static_cast<float>(upgrades_[2])) * carArmor(selectedCar_);
+                         const float damage = 28.0f * (1.0f - 0.10f * static_cast<float>(upgrades_[2])) * carArmor(selectedCar_);
 
             health_ = std::max(0.0f, health_ - damage);
 
@@ -2001,8 +1919,7 @@ void Game::updateOilSlicks(float dt)
         oilTimer_ -= dt;
     }
 
-    // новое пятно раз в 12-22 секунды, в случайной полосе
-    oilSpawnTimer_ -= dt;
+         oilSpawnTimer_ -= dt;
 
     if (oilSpawnTimer_ <= 0.0f)
     {
@@ -2030,8 +1947,7 @@ void Game::updateOilSlicks(float dt)
 
         if (sameLaneSpace && sameDepthSpace)
         {
-            // пока колёса на пятне, занос держится и ещё немного после него
-            oilTimer_ = 1.4f;
+                         oilTimer_ = 1.4f;
         }
     }
 
@@ -2065,8 +1981,7 @@ void Game::updatePowerUps(float dt)
         powerPopupTimer_ -= dt;
     }
 
-    // новый бонус раз в 14-24 секунды, в случайной полосе
-    powerSpawnTimer_ -= dt;
+         powerSpawnTimer_ -= dt;
 
     if (powerSpawnTimer_ <= 0.0f)
     {
@@ -2276,8 +2191,7 @@ float Game::carArmor(int id)
     return (id >= 0 && id < kCarCount) ? kCarArmor[id] : 1.0f;
 }
 
-// выбрать машину; закрытую покупает, если хватает уровня и монет
-bool Game::applyCar(int id)
+ bool Game::applyCar(int id)
 {
     if (id < 0 || id >= kCarCount)
     {
@@ -2346,8 +2260,7 @@ int Game::achReward(int id)
     return (id >= 0 && id < kAchCount) ? kAchRewards[id] : 0;
 }
 
-// прогресс включает текущий забег, пока он ещё не записан в статистику
-int Game::achProgress(int id) const
+ int Game::achProgress(int id) const
 {
     const bool live = !runRecorded_;
 
@@ -2499,12 +2412,9 @@ void Game::recordRun()
 {
     runRecorded_ = true;
 
-    // опыт за забег: очки, монеты, побеги от полиции и задание
-    {
-        // статистика за всё время
-        totalDistance_ += static_cast<int>(distance_);
-        // Distance and skill bonuses are awarded once per completed run.
-        bank_ += std::min(250, static_cast<int>(distance_ / 30.0f));
+         {
+                 totalDistance_ += static_cast<int>(distance_);
+                 bank_ += std::min(250, static_cast<int>(distance_ / 30.0f));
         bank_ += std::min(90, maxCombo_ * 6);
         bank_ += escapes_ * 25;
         if (missionDone_) bank_ += 60;
@@ -2524,8 +2434,7 @@ void Game::recordRun()
 
         lastLevelUps_ = after - before;
 
-        // награда за каждый новый уровень: 10 монет за номер уровня
-        for (int l = before + 1; l <= after; ++l)
+                 for (int l = before + 1; l <= after; ++l)
         {
             bank_ += 10 * l;
         }
