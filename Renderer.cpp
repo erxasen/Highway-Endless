@@ -19,26 +19,14 @@ namespace {
     constexpr float kWorldNearZ = 14.0f;
     constexpr float kWorldFarZ = -210.0f;
 
-    // Переключатели графики: если что-то выглядит не так или падает FPS,
-    // поставьте false у нужного блока.
-    constexpr bool kGfxDynamicLight = true;   // свет зависит от времени суток, дождя и туннеля
-    constexpr bool kGfxSpecular = true;       // блики на кузове
-    constexpr bool kGfxReflection = true;     // отражение неба на крыше и капоте
-    constexpr bool kGfxTextures = true;       // текстура асфальта и травы
-    constexpr bool kGfxPines = true;          // хвойные деревья вместо кубов
-
+         constexpr bool kGfxDynamicLight = true;        constexpr bool kGfxSpecular = true;            constexpr bool kGfxReflection = true;          constexpr bool kGfxTextures = true;            constexpr bool kGfxPines = true;           
     GLuint gTexAsphalt = 0;
     GLuint gTexGrass = 0;
 
-    constexpr bool kGfxWetExtras = true;    // отражение кузова, капли на кузове, брызги от машин потока
-    constexpr bool kGfxSkidMarks = true;    // следы шин и дым при торможении и заносе
-
-    int gTrack = 0;          // трасса: 0 хайвей, 1 пустыня, 2 снег
-    float gSnow = 0.0f;      // 0..1, снегопад (только на снежной трассе, там gRain всегда 0)
-
+    constexpr bool kGfxWetExtras = true;         constexpr bool kGfxSkidMarks = true;     
+    int gTrack = 0;               float gSnow = 0.0f;       
     struct SkidSeg {
-        float x0, d0, x1, d1;   // начало и конец отрезка следа: поперечная позиция и пройденный путь
-    };
+        float x0, d0, x1, d1;        };
 
     std::vector<SkidSeg> gSkids;
     bool gSkidPrev = false;
@@ -46,12 +34,10 @@ namespace {
     float gSkidPrevD = 0.0f;
     float gSkidSmokeAcc = 0.0f;
 
-    // база цвета и цвет неба для отражения на кузове (выставляются в drawLoft и render)
-    const Color* gReflBase = nullptr;
+         const Color* gReflBase = nullptr;
     Color gReflSky = { 0.60f, 0.70f, 0.85f, 1.0f };
 
-    // бесшовная текстура-шум: крупные пятна, мелкое зерно и редкие светлые крупинки
-    GLuint makeNoiseTexture(int size, float mean, float fine, float coarseAmp, unsigned int seed) {
+         GLuint makeNoiseTexture(int size, float mean, float fine, float coarseAmp, unsigned int seed) {
         std::vector<unsigned char> px(static_cast<size_t>(size) * static_cast<size_t>(size) * 3u);
 
         unsigned int s = seed * 2654435761u + 12345u;
@@ -276,27 +262,17 @@ namespace {
         glEnd();
     }
 
-    // 0 = день, 1 = глубокая ночь (выставляется в Renderer::render)
-    float gNightLevel = 0.0f;
+         float gNightLevel = 0.0f;
 
-    float gDriverTime = 0.0f;   // время для анимации водителя
-    float gDriverWind = 0.0f;   // 0..1, сила встречного ветра (скорость)
-    float gDriverAlert = 0.0f;  // 0..1, водитель напрягся: впереди машина, обе руки на руле
+    float gDriverTime = 0.0f;        float gDriverWind = 0.0f;        float gDriverAlert = 0.0f;   
+         float gRain = 0.0f;
 
-    // 0 = ясно, 1 = сильный дождь (берётся из Game::rain(), в туннеле 0)
-    float gRain = 0.0f;
+         float gBrake = 0.0f;
 
-    // 0..1, плавно растёт, когда игрок тормозит
-    float gBrake = 0.0f;
-
-    // ---------- Туннели ----------
-    // Константы туннеля (kTunnelPeriod, kTunnelPhase, kTunnelLength)
-    // лежат в Game.hpp, чтобы Game и Renderer использовали одни и те же.
-
+               
     float gDist = 0.0f;
     float gPlayerZ = 4.0f;
-    float gTunnelInside = 0.0f;   // 0..1, камера внутри туннеля
-    bool gTunnelValid = false;
+    float gTunnelInside = 0.0f;        bool gTunnelValid = false;
     float gTunZNear = 0.0f;
     float gTunZFar = 0.0f;
     float gTunLoD = 0.0f;
@@ -342,17 +318,14 @@ namespace {
         glEnable(GL_LIGHTING);
     }
 
-    // обычное полупрозрачное рисование без записи глубины (лужи, облака);
-    // закончить нужно через endGlow()
-    void beginAlpha() {
+              void beginAlpha() {
         glDisable(GL_LIGHTING);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glDepthMask(GL_FALSE);
     }
 
-    // круглое свечение, повёрнутое к камере (в плоскости XY)
-    void drawGlow(float x, float y, float z, float radius, Color c) {
+         void drawGlow(float x, float y, float z, float radius, Color c) {
         constexpr int seg = 20;
 
         glBegin(GL_TRIANGLE_FAN);
@@ -366,8 +339,7 @@ namespace {
         glEnd();
     }
 
-    // световое пятно на земле (в плоскости XZ)
-    void drawGroundGlow(float cx, float cz, float rx, float rz, Color c, float y) {
+         void drawGroundGlow(float cx, float cz, float rx, float rz, Color c, float y) {
         constexpr int seg = 24;
 
         glBegin(GL_TRIANGLE_FAN);
@@ -388,8 +360,7 @@ namespace {
         drawGlow(headX, headY, z + 0.2f, 1.1f, { 1.0f, 0.80f, 0.40f, 0.55f * k });
         drawGroundGlow(poolX, z, 3.4f, 5.5f, { 1.0f, 0.78f, 0.40f, 0.38f * k }, 0.045f);
 
-        // отражение лампы на мокрой дороге
-        if (gRain > 0.01f) {
+                 if (gRain > 0.01f) {
             drawGroundGlow(poolX * 0.85f, z + 7.0f, 0.9f, 11.0f, { 1.0f, 0.78f, 0.40f, 0.30f * gRain * k }, 0.05f);
         }
         endGlow();
@@ -407,8 +378,7 @@ namespace {
         glEnd();
     }
 
-    // плоский диск, перпендикулярный оси X
-    void drawDiscX(float x, float y, float z, float r, float nx, Color c) {
+         void drawDiscX(float x, float y, float z, float r, float nx, Color c) {
         constexpr int seg = 20;
 
         setColor(c);
@@ -425,8 +395,7 @@ namespace {
         glEnd();
     }
 
-    // кольцо между радиусами r0 и r1
-    void drawRingX(float x, float y, float z, float r0, float r1, float nx, Color c) {
+         void drawRingX(float x, float y, float z, float r0, float r1, float nx, Color c) {
         constexpr int seg = 20;
 
         setColor(c);
@@ -446,13 +415,11 @@ namespace {
         glEnd();
     }
 
-    // спица: трапеция от радиуса r0 до r1, шире у обода
-    void drawSpokeX(float x, float y, float z, float angle, float r0, float r1, float w0, float w1, float nx, Color c) {
+         void drawSpokeX(float x, float y, float z, float angle, float r0, float r1, float w0, float w1, float nx, Color c) {
         const float ca = std::cos(angle);
         const float sa = std::sin(angle);
 
-        // направление спицы в плоскости (y, z) и перпендикуляр к нему
-        const float dy = ca;
+                 const float dy = ca;
         const float dz = sa;
         const float py = -sa;
         const float pz = ca;
@@ -468,14 +435,12 @@ namespace {
         glEnd();
     }
 
-    // колесо: шина с боковинами, обод, пять спиц и ступица; наружу смотрит сторона, где x больше нуля у правых колёс
-    void drawWheel(float x, float y, float z, float radius, float width, float spin) {
+         void drawWheel(float x, float y, float z, float radius, float width, float spin) {
         const float dir = x < 0.0f ? -1.0f : 1.0f;
         const float xo = x + dir * width * 0.5f;
         const float xi = x - dir * width * 0.5f;
 
-        // протектор
-        setColor({ 0.025f, 0.028f, 0.032f, 1.0f });
+                 setColor({ 0.025f, 0.028f, 0.032f, 1.0f });
 
         glBegin(GL_QUAD_STRIP);
 
@@ -493,14 +458,12 @@ namespace {
 
         glEnd();
 
-        // боковины
-        const Color sidewall = { 0.050f, 0.052f, 0.058f, 1.0f };
+                 const Color sidewall = { 0.050f, 0.052f, 0.058f, 1.0f };
 
         drawDiscX(xo + dir * 0.002f, y, z, radius, dir, sidewall);
         drawDiscX(xi - dir * 0.002f, y, z, radius, -dir, sidewall);
 
-        // обод: серебристое кольцо, тёмное дно и пять спиц
-        const Color silver = { 0.70f, 0.72f, 0.76f, 1.0f };
+                 const Color silver = { 0.70f, 0.72f, 0.76f, 1.0f };
         const Color deep = { 0.075f, 0.078f, 0.088f, 1.0f };
 
         const float f1 = xo + dir * 0.006f;
@@ -516,32 +479,20 @@ namespace {
             drawSpokeX(f2, y, z, ang, radius * 0.10f, radius * 0.62f, radius * 0.045f, radius * 0.085f, dir, silver);
         }
 
-        // ступица и красный суппорт тормоза
-        drawDiscX(f3, y, z, radius * 0.15f, dir, silver);
+                 drawDiscX(f3, y, z, radius * 0.15f, dir, silver);
         drawDiscX(f3 + dir * 0.003f, y, z, radius * 0.07f, dir, deep);
         drawSpokeX(f1 + dir * 0.002f, y, z, 2.2f, radius * 0.32f, radius * 0.56f, radius * 0.10f, radius * 0.12f, dir, { 0.80f, 0.08f, 0.06f, 1.0f });
     }
 
-    // ---------- Реалистичный кузов: профиль в виде лофта ----------
-
-    // форма кузова: все числа в долях длины (t: 0 нос, 1 корма) или высоты
-    struct CarShape {
-        float belt;        // высота линии капота и багажника, доля высоты машины
-        float hoodEnd;     // где кончается капот и начинается лобовое стекло
-        float roofStart;   // начало крыши
-        float roofEnd;     // конец крыши
-        float rearBase;    // основание заднего стекла
-        float nose;        // высота носа, доля линии капота
-        float trunk;       // высота багажника, доля линии капота
-        float roofW;       // полуширина крыши, доля полуширины корпуса
-    };
+     
+         struct CarShape {
+        float belt;                 float hoodEnd;              float roofStart;            float roofEnd;              float rearBase;             float nose;                 float trunk;                float roofW;            };
 
     CarShape carShape(TrafficType type) {
         switch (type) {
         case TrafficType::Sport: return { 0.43f, 0.37f, 0.52f, 0.66f, 0.82f, 0.67f, 0.83f, 0.72f };
         case TrafficType::Van:   return { 0.46f, 0.16f, 0.22f, 0.90f, 0.97f, 0.92f, 1.00f, 0.82f };
-                             // купе: длинный капот, короткая кабина с узкой крышей, пологое заднее стекло
-        case TrafficType::Coupe: return { 0.49f, 0.34f, 0.50f, 0.62f, 0.84f, 0.80f, 0.92f, 0.64f };
+                                      case TrafficType::Coupe: return { 0.49f, 0.34f, 0.50f, 0.62f, 0.84f, 0.80f, 0.92f, 0.64f };
         default:                 return { 0.50f, 0.30f, 0.43f, 0.67f, 0.82f, 0.84f, 0.95f, 0.70f };
         }
     }
@@ -560,16 +511,14 @@ namespace {
         return fs[5];
     }
 
-    // высота верха корпуса (капот, багажник) на отметке t
-    float carHullTop(const CarShape& s, float height, float t) {
+         float carHullTop(const CarShape& s, float height, float t) {
         const float ts[6] = { 0.0f, s.hoodEnd * 0.5f, s.hoodEnd, s.rearBase, s.rearBase + (1.0f - s.rearBase) * 0.55f, 1.0f };
         const float fs[6] = { s.nose, s.nose + (1.0f - s.nose) * 0.65f, 1.0f, 1.0f, s.trunk, s.trunk - 0.07f };
 
         return height * s.belt * piecewise6(ts, fs, t);
     }
 
-    // ширина корпуса на отметке t, доля от полной
-    float carWidthFrac(const CarShape& s, float t) {
+         float carWidthFrac(const CarShape& s, float t) {
         const float ts[6] = { 0.0f, s.hoodEnd * 0.5f, s.hoodEnd, s.rearBase, s.rearBase + (1.0f - s.rearBase) * 0.55f, 1.0f };
         const float fs[6] = { 0.88f, 0.96f, 1.0f, 1.0f, 0.99f, 0.93f };
 
@@ -577,11 +526,7 @@ namespace {
     }
 
     struct CabinSec {
-        float y0;   // низ кабины (верх корпуса)
-        float ch;   // высота кабины
-        float wb;   // полуширина внизу
-        float wt;   // полуширина вверху
-        float z;
+        float y0;            float ch;            float wb;            float wt;            float z;
     };
 
     CabinSec cabinAt(const CarShape& s, float W, float L, float H, float t) {
@@ -616,9 +561,7 @@ namespace {
         return c;
     }
 
-    // один четырёхугольник с нормалью, направленной наружу от точки center;
-    // нормаль по Ньюэллу, поэтому вырожденные четырёхугольники безопасны
-    void emitQuad(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& d, const Vec3& center, float offset = 0.0f) {
+              void emitQuad(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& d, const Vec3& center, float offset = 0.0f) {
         const Vec3 p[4] = { a, b, c, d };
 
         Vec3 n = { 0.0f, 0.0f, 0.0f };
@@ -648,8 +591,7 @@ namespace {
             n = { -n.x, -n.y, -n.z };
         }
 
-        // отражение неба: верхние грани светлеют, нижние темнеют
-        if (gReflBase) {
+                 if (gReflBase) {
             Color c = *gReflBase;
 
             if (n.y > 0.0f) {
@@ -669,8 +611,7 @@ namespace {
         }
     }
 
-    // тело вращения по сечениям: кольца соединяются четырёхугольниками
-    void drawLoft(const std::vector<std::vector<Vec3>>& rings, const Color& color, bool caps, bool reflect = false) {
+         void drawLoft(const std::vector<std::vector<Vec3>>& rings, const Color& color, bool caps, bool reflect = false) {
         if (rings.size() < 2) {
             return;
         }
@@ -722,10 +663,8 @@ namespace {
         gReflBase = nullptr;
     }
 
-    // кузов легковой машины: скошенный капот, лобовое и заднее стекло, боковые окна
-    void drawCarBody(const CarShape& s, float W, float L, float H, const Color& body, bool player) {
-        // корпус: 7 сечений от носа до кормы, каждое с фасками по бокам
-        const float hullT[7] = {
+         void drawCarBody(const CarShape& s, float W, float L, float H, const Color& body, bool player) {
+                 const float hullT[7] = {
             0.0f,
             s.hoodEnd * 0.5f,
             s.hoodEnd,
@@ -757,8 +696,7 @@ namespace {
                 });
         }
 
-        // блики: глянцевый лак кузова
-        if (kGfxSpecular) {
+                 if (kGfxSpecular) {
             const GLfloat spec[] = { 0.60f, 0.60f, 0.64f, 1.0f };
 
             glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, spec);
@@ -767,8 +705,7 @@ namespace {
 
         drawLoft(hull, body, true, true);
 
-        // кабина: трапеция, сужающаяся кверху
-        const float cabT[4] = { s.hoodEnd, s.roofStart, s.roofEnd, s.rearBase };
+                 const float cabT[4] = { s.hoodEnd, s.roofStart, s.roofEnd, s.rearBase };
 
         std::vector<std::vector<Vec3>> cabin;
 
@@ -791,15 +728,13 @@ namespace {
             glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, none);
         }
 
-        // стёкла чуть выступают над поверхностью кабины
-        const Color glass = { 0.06f, 0.15f, 0.21f, 1.0f };
+                 const Color glass = { 0.06f, 0.15f, 0.21f, 1.0f };
         const Vec3 gc = { 0.0f, H * s.belt * 0.7f, 0.0f };
 
         setColor(glass);
         glBegin(GL_QUADS);
 
-        // лобовое
-        {
+                 {
             const CabinSec a = cabinAt(s, W, L, H, s.hoodEnd + (s.roofStart - s.hoodEnd) * 0.08f);
             const CabinSec b = cabinAt(s, W, L, H, s.hoodEnd + (s.roofStart - s.hoodEnd) * 0.94f);
 
@@ -812,8 +747,7 @@ namespace {
             );
         }
 
-        // заднее
-        {
+                 {
             const CabinSec a = cabinAt(s, W, L, H, s.roofEnd + (s.rearBase - s.roofEnd) * 0.06f);
             const CabinSec b = cabinAt(s, W, L, H, s.roofEnd + (s.rearBase - s.roofEnd) * 0.92f);
 
@@ -826,8 +760,7 @@ namespace {
             );
         }
 
-        // боковые окна: три секции, повторяющие излом кабины
-        {
+                 {
             const float tf = s.hoodEnd + (s.roofStart - s.hoodEnd) * 0.55f;
             const float tb = s.roofEnd + (s.rearBase - s.roofEnd) * 0.45f;
             const float tw[4] = { tf, s.roofStart, s.roofEnd, tb };
@@ -854,8 +787,7 @@ namespace {
 
         glEnd();
 
-        // линии дверей на боковинах
-        {
+                 {
             const Color seam = mixColor(body, { 0.0f, 0.0f, 0.0f, 1.0f }, 0.45f);
             const float hw = W * 0.5f;
             const float yMid = H * s.belt * 0.62f;
@@ -874,8 +806,7 @@ namespace {
 
     }
 
-    // Helpers for vehicle details.
-    void drawRainBeads(const CarShape& shape, float width, float length, float height) {
+         void drawRainBeads(const CarShape& shape, float width, float length, float height) {
         beginAlpha();
         for (int i = 0; i < 18; ++i) {
             const float t = 0.18f + 0.035f * static_cast<float>(i);
@@ -950,8 +881,7 @@ namespace {
             0.025f
         );
 
-        // мягкая тень по центру: тёмнее под кузовом, к краям тает
-        drawGroundGlow(0.0f, 0.0f, width * 0.80f, length * 0.62f, { 0.0f, 0.0f, 0.0f, 0.34f }, 0.026f);
+                 drawGroundGlow(0.0f, 0.0f, width * 0.80f, length * 0.62f, { 0.0f, 0.0f, 0.0f, 0.34f }, 0.026f);
 
         glDisable(GL_BLEND);
         glEnable(GL_LIGHTING);
@@ -961,8 +891,7 @@ namespace {
         const bool boxy = (type == TrafficType::Truck || type == TrafficType::Bus);
         const CarShape shape = carShape(type);
 
-        // высота фар и стоп-сигналов зависит от формы носа и кормы
-        float lightY = 0.42f;
+                 float lightY = 0.42f;
         float barY = 0.42f;
 
         if (boxy) {
@@ -1001,8 +930,7 @@ namespace {
             );
         }
         else if (type == TrafficType::Bus) {
-            // автобус: высокий верх, лента окон по бокам и лобовое стекло
-            const Color busGlass = { 0.05f, 0.13f, 0.19f, 1.0f };
+                         const Color busGlass = { 0.05f, 0.13f, 0.19f, 1.0f };
             const float upperH = height - bodyHeight;
 
             const float cabinHeight =
@@ -1025,20 +953,17 @@ namespace {
 
             drawBox(0.0f, bodyHeight + upperH * 0.52f, -length * 0.49f - 0.01f, width * 0.88f, upperH * 0.50f, 0.03f, busGlass);
 
-            // табло маршрута над лобовым стеклом
-            drawBox(0.0f, height - 0.14f, -length * 0.49f - 0.01f, width * 0.5f, 0.12f, 0.03f, { 1.0f, 0.65f, 0.10f, 1.0f });
+                         drawBox(0.0f, height - 0.14f, -length * 0.49f - 0.01f, width * 0.5f, 0.12f, 0.03f, { 1.0f, 0.65f, 0.10f, 1.0f });
         }
         else {
-            // боковые зеркала у основания лобового стекла
-            const Color mirror = mixColor(body, { 0.0f, 0.0f, 0.0f, 1.0f }, 0.35f);
+                         const Color mirror = mixColor(body, { 0.0f, 0.0f, 0.0f, 1.0f }, 0.35f);
             const float mirrorY = height * shape.belt + 0.01f;
             const float mirrorZ = -length * 0.5f + shape.hoodEnd * length + 0.10f;
 
             drawBox(-(width * 0.5f + 0.10f), bodyHeight + 0.10f, -length * 0.14f, 0.18f, 0.10f, 0.12f, mirror);
             drawBox(width * 0.5f + 0.10f, bodyHeight + 0.10f, -length * 0.14f, 0.18f, 0.10f, 0.12f, mirror);
 
-            // задний спойлер у спортивных машин в потоке
-            if (type == TrafficType::Sport && !player) {
+                         if (type == TrafficType::Sport && !player) {
                 const Color dark = { 0.04f, 0.04f, 0.05f, 1.0f };
                 const float deck = carHullTop(shape, height, 0.90f);
 
@@ -1047,8 +972,7 @@ namespace {
                 drawBox(width * 0.30f, deck + 0.07f, length * 0.43f, 0.06f, 0.14f, 0.12f, dark);
             }
 
-            // гоночные полосы на машине игрока
-            if (player) {
+                         if (player) {
                 const Color stripe = { 0.95f, 0.96f, 1.0f, 1.0f };
                 const float topY = bodyHeight * 1.05f + 0.006f;
                 const float roofT = (shape.roofStart + shape.roofEnd) * 0.5f;
@@ -1073,15 +997,13 @@ namespace {
 
         drawCarDetails(type, shape, width, length, height, player);
 
-        // бамперы, планка стоп-сигналов и номер
-        const Color bumper = { 0.07f, 0.07f, 0.08f, 1.0f };
+                 const Color bumper = { 0.07f, 0.07f, 0.08f, 1.0f };
 
         drawBox(0.0f, 0.28f, -length * 0.5f - 0.02f, width * 0.96f, 0.16f, 0.10f, bumper);
         drawBox(0.0f, 0.28f, length * 0.5f + 0.02f, width * 0.96f, 0.16f, 0.10f, bumper);
         drawBox(0.0f, barY, length * 0.506f, width * 0.30f, 0.05f, 0.06f, { 0.35f, 0.02f, 0.02f, 1.0f });
 
-        // номер на заднем бампере: у каждой машины свой, считается из цвета и длины
-        const unsigned int plateSeed = player
+                 const unsigned int plateSeed = player
             ? 2026u
             : (static_cast<unsigned int>(body.r * 255.0f) * 73856093u) ^
             (static_cast<unsigned int>(body.g * 255.0f) * 19349663u) ^
@@ -1092,20 +1014,17 @@ namespace {
 
         const Color rearLight = { 1.0f, 0.04f, 0.03f, 1.0f };
 
-        // фары с корпусом, отражателем, лампой, дневными огнями и линзой
-        drawHeadlight(-width * 0.27f, lightY, -length * 0.505f, width * 0.21f, 0.12f, player);
+                 drawHeadlight(-width * 0.27f, lightY, -length * 0.505f, width * 0.21f, 0.12f, player);
         drawHeadlight(width * 0.27f, lightY, -length * 0.505f, width * 0.21f, 0.12f, player);
 
-        // решётка радиатора между фарами
-        if (!boxy) {
+                 if (!boxy) {
             drawBox(0.0f, lightY - 0.01f, -length * 0.5f - 0.005f, width * 0.26f, 0.09f, 0.04f, { 0.05f, 0.05f, 0.06f, 1.0f });
         }
 
         drawBox(-width * 0.27f, lightY, length * 0.505f, width * 0.18f, 0.12f, 0.07f, rearLight);
         drawBox(width * 0.27f, lightY, length * 0.505f, width * 0.18f, 0.12f, 0.07f, rearLight);
 
-        // поворотники: signalDir -1 влево, +1 вправо, 0 выключены
-        const bool signalOn = signalDir != 0 && fract(signalTime * 2.5f) < 0.5f;
+                 const bool signalOn = signalDir != 0 && fract(signalTime * 2.5f) < 0.5f;
 
         if (signalDir != 0) {
             const Color amberOn = { 1.0f, 0.65f, 0.05f, 1.0f };
@@ -1117,8 +1036,7 @@ namespace {
         }
 
         if (player && type == TrafficType::Sport) {
-            // заднее крыло на двух стойках
-            const float deck = carHullTop(shape, height, 0.90f);
+                         const float deck = carHullTop(shape, height, 0.90f);
             const Color wingCol = { 0.04f, 0.04f, 0.05f, 1.0f };
 
             drawBox(0.0f, deck + 0.17f, length * 0.43f, width * 0.86f, 0.05f, 0.26f, wingCol);
@@ -1126,19 +1044,16 @@ namespace {
             drawBox(width * 0.28f, deck + 0.085f, length * 0.43f, 0.05f, 0.17f, 0.10f, wingCol);
         }
 
-        // свечение стоп-сигналов и свет фар игрока
-        beginGlow();
+                 beginGlow();
 
-        // при торможении стоп-сигналы игрока горят ярче и больше
-        const float brakeK = player ? gBrake : 0.0f;
+                 const float brakeK = player ? gBrake : 0.0f;
         const float rg = 0.40f + 0.45f * gNightLevel + 0.40f * brakeK;
         const float rr = 0.55f + 0.40f * brakeK;
 
         drawGlow(-width * 0.27f, lightY, length * 0.53f, rr, { 1.0f, 0.10f, 0.05f, std::min(rg, 1.0f) });
         drawGlow(width * 0.27f, lightY, length * 0.53f, rr, { 1.0f, 0.10f, 0.05f, std::min(rg, 1.0f) });
 
-        // ночью вокруг фар виден ореол
-        if (gNightLevel > 0.05f) {
+                 if (gNightLevel > 0.05f) {
             const float fa = (player ? 0.55f : 0.35f) * gNightLevel;
 
             drawGlow(-width * 0.27f, lightY, -length * 0.53f, 0.50f, { 1.0f, 0.92f, 0.65f, fa });
@@ -1161,15 +1076,13 @@ namespace {
             drawGroundGlow(width * 0.27f, length * 0.5f + 2.2f, 0.4f, 2.6f, { 1.0f, 0.10f, 0.05f, 0.35f * gRain }, 0.05f);
         }
 
-        // в дождь свет фар отражается длинными полосами на мокрой дороге перед машиной
-        if (gRain > 0.01f) {
+                 if (gRain > 0.01f) {
             const float refl = (player ? 0.34f : 0.22f) * gRain * (0.45f + 0.55f * gNightLevel);
 
             drawGroundGlow(-width * 0.27f, -length * 0.5f - 3.6f, 0.38f, 3.4f, { 1.0f, 0.93f, 0.72f, refl }, 0.05f);
             drawGroundGlow(width * 0.27f, -length * 0.5f - 3.6f, 0.38f, 3.4f, { 1.0f, 0.93f, 0.72f, refl }, 0.05f);
 
-            // отражение самого кузова: размытая полоса цвета машины на мокром асфальте
-            if (kGfxWetExtras) {
+                         if (kGfxWetExtras) {
                 drawGroundGlow(0.0f, length * 0.5f + 1.6f, width * 0.62f, length * 0.62f, { body.r * 0.9f, body.g * 0.9f, body.b * 0.9f, 0.20f * gRain }, 0.049f);
             }
         }
@@ -1194,8 +1107,7 @@ namespace {
             glEnd();
         }
         else if (gNightLevel > 0.15f) {
-            // машины потока: свет слабее и короче, чем у вашей, только в темноте
-            const float beamA = 0.17f * gNightLevel;
+                         const float beamA = 0.17f * gNightLevel;
             const float fz = -length * 0.5f;
 
             glBegin(GL_TRIANGLES);
@@ -1217,15 +1129,13 @@ namespace {
         glPopMatrix();
     }
 
-    // масляное пятно: тёмный блин с радужным отливом
-    void drawOilSlick(float x, float z, float t) {
+         void drawOilSlick(float x, float z, float t) {
         beginAlpha();
 
         drawGroundGlow(x, z, 1.55f, 2.9f, { 0.0f, 0.0f, 0.0f, 0.88f }, 0.018f);
         drawGroundGlow(x + 0.15f, z - 0.3f, 1.10f, 2.1f, { 0.0f, 0.0f, 0.0f, 0.55f }, 0.019f);
 
-        // радужный отлив переливается со временем
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+                 glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
         const float s1 = std::sin(t * 1.3f);
         const float s2 = std::sin(t * 1.7f + 2.0f);
@@ -1239,18 +1149,15 @@ namespace {
         endGlow();
     }
 
-    // дорожные работы: полосатый барьер, мигающие лампы и конусы перед ним
-    void drawRoadBlock(float x, float z, float t) {
+         void drawRoadBlock(float x, float z, float t) {
         const Color orange = { 1.0f, 0.45f, 0.05f, 1.0f };
         const Color white = { 0.95f, 0.95f, 0.92f, 1.0f };
         const Color post = { 0.55f, 0.57f, 0.60f, 1.0f };
 
-        // ножки барьера
-        drawBox(x - 1.15f, 0.40f, z, 0.12f, 0.80f, 0.12f, post);
+                 drawBox(x - 1.15f, 0.40f, z, 0.12f, 0.80f, 0.12f, post);
         drawBox(x + 1.15f, 0.40f, z, 0.12f, 0.80f, 0.12f, post);
 
-        // две полосатые доски
-        for (int row = 0; row < 2; ++row) {
+                 for (int row = 0; row < 2; ++row) {
             const float y = 0.62f + static_cast<float>(row) * 0.34f;
 
             for (int i = 0; i < 6; ++i) {
@@ -1261,8 +1168,7 @@ namespace {
             }
         }
 
-        // конусы перед барьером (со стороны игрока)
-        for (int i = -1; i <= 1; ++i) {
+                 for (int i = -1; i <= 1; ++i) {
             const float cx = x + static_cast<float>(i) * 1.05f;
             const float cz = z + 3.2f - std::abs(static_cast<float>(i)) * 0.6f;
 
@@ -1271,8 +1177,7 @@ namespace {
             drawBox(cx, 0.34f, cz, 0.28f, 0.08f, 0.28f, white);
         }
 
-        // мигающие лампы сверху
-        const bool phase = fract(t * 2.0f) < 0.5f;
+                 const bool phase = fract(t * 2.0f) < 0.5f;
 
         drawBox(x - 1.15f, 1.02f, z, 0.14f, 0.14f, 0.14f, phase ? Color{ 1.0f, 0.70f, 0.10f, 1.0f } : Color{ 0.35f, 0.20f, 0.05f, 1.0f });
         drawBox(x + 1.15f, 1.02f, z, 0.14f, 0.14f, 0.14f, phase ? Color{ 0.35f, 0.20f, 0.05f, 1.0f } : Color{ 1.0f, 0.70f, 0.10f, 1.0f });
@@ -1326,8 +1231,7 @@ namespace {
         glPopMatrix();
     }
 
-    // внешний вид машин игрока: тип кузова и размеры (хитбокс в Game не меняется)
-    struct CarLook {
+         struct CarLook {
         TrafficType type;
         float w;
         float l;
@@ -1346,8 +1250,7 @@ namespace {
         }
     }
 
-    // конус с острой вершиной вверх и наклонными нормалями
-    void drawCone(float x, float y, float z, float radius, float height, int seg, Color c) {
+         void drawCone(float x, float y, float z, float radius, float height, int seg, Color c) {
         setColor(c);
 
         const float len = std::sqrt(height * height + radius * radius);
@@ -1368,15 +1271,13 @@ namespace {
         glEnd();
     }
 
-    // ель из трёх ярусов; ствол рисуется отдельно
-    void drawPine(float x, float z, float s, Color c) {
+         void drawPine(float x, float z, float s, Color c) {
         drawCone(x, 1.1f * s, z, 1.75f * s, 2.2f * s, 12, c);
         drawCone(x, 2.1f * s, z, 1.35f * s, 2.0f * s, 12, mixColor(c, { 0.05f, 0.45f, 0.20f, 1.0f }, 0.15f));
         drawCone(x, 3.0f * s, z, 0.90f * s, 1.8f * s, 12, mixColor(c, { 0.10f, 0.55f, 0.25f, 1.0f }, 0.25f));
     }
 
-    // на снежной трассе хвоя и кусты припорошены
-    Color snowTint(Color c) {
+         Color snowTint(Color c) {
         return gTrack == 2 ? mixColor(c, { 0.88f, 0.93f, 1.0f, 1.0f }, 0.55f) : c;
     }
 
@@ -1392,8 +1293,7 @@ namespace {
         return k == 0 ? Color{ 0.03f, 0.20f, 0.08f, 1.0f } : Color{ 0.03f, 0.18f, 0.075f, 1.0f };
     }
 
-    // кактус: ствол с двумя ветками, верхушки закрыты плитками
-    void drawCactus(float x, float z, float s, Color c) {
+         void drawCactus(float x, float z, float s, Color c) {
         drawCylinder(x, 0.0f, z, 0.28f * s, 2.4f * s, 10, c);
         drawBox(x, 2.4f * s, z, 0.56f * s, 0.06f, 0.56f * s, c);
 
@@ -1406,8 +1306,7 @@ namespace {
         drawBox(x + 0.78f * s, 1.8f * s, z, 0.32f * s, 0.06f, 0.32f * s, c);
     }
 
-    // дальний план: в пустыне плоскогорья, на снежной трассе горы с белыми шапками
-    void drawBackdrop() {
+         void drawBackdrop() {
         for (int i = 0; i < 9; ++i) {
             const float x = -80.0f + static_cast<float>(i) * 20.0f;
             const float z = -150.0f - static_cast<float>(i % 3) * 18.0f;
@@ -1426,8 +1325,7 @@ namespace {
         }
     }
 
-    // следы шин на дороге: тёмные полосы за задними колёсами
-    void drawSkidMarks(float pz) {
+         void drawSkidMarks(float pz) {
         if (gSkids.empty()) {
             return;
         }
@@ -1457,9 +1355,7 @@ namespace {
         endGlow();
     }
 
-    // земля с текстурой; текстура привязана к земле и едет вместе с дорогой
-    // (размер текстуры делит 72, поэтому при сбросе offset нет скачка)
-    void drawTexturedGround(float x1, float z1, float x2, float z2, Color color, float y, GLuint tex, float size, float offset) {
+              void drawTexturedGround(float x1, float z1, float x2, float z2, Color color, float y, GLuint tex, float size, float offset) {
         glEnable(GL_TEXTURE_2D);
         glBindTexture(GL_TEXTURE_2D, tex);
 
@@ -1481,10 +1377,8 @@ namespace {
         glDisable(GL_TEXTURE_2D);
     }
 
-    // бонус на дороге: вращающийся кристалл с мягким свечением своего цвета
-    void drawPowerUp(float x, float z, float phase, PowerType type) {
-        Color c = { 0.25f, 0.85f, 1.0f, 1.0f };   // щит
-
+         void drawPowerUp(float x, float z, float phase, PowerType type) {
+        Color c = { 0.25f, 0.85f, 1.0f, 1.0f };    
         if (type == PowerType::Magnet) {
             c = { 1.0f, 0.50f, 0.12f, 1.0f };
         }
@@ -1505,8 +1399,7 @@ namespace {
         glDisable(GL_LIGHTING);
         glRotatef(phase * 55.0f, 0.0f, 1.0f, 0.0f);
 
-        // два куба под углом дают восьмиконечную звезду, внутри белое ядро
-        drawBox(0.0f, 0.0f, 0.0f, 0.55f, 0.55f, 0.55f, c);
+                 drawBox(0.0f, 0.0f, 0.0f, 0.55f, 0.55f, 0.55f, c);
 
         glRotatef(45.0f, 0.0f, 1.0f, 0.0f);
         drawBox(0.0f, 0.0f, 0.0f, 0.55f, 0.55f, 0.55f, mixColor(c, { 1.0f, 1.0f, 1.0f, 1.0f }, 0.35f));
@@ -1523,20 +1416,17 @@ namespace {
         Color grassB = { 0.022f, 0.075f, 0.045f, 1.0f };
 
         if (gTrack == 1) {
-            // песок
-            grassA = { 0.46f, 0.34f, 0.18f, 1.0f };
+                         grassA = { 0.46f, 0.34f, 0.18f, 1.0f };
             grassB = { 0.40f, 0.29f, 0.15f, 1.0f };
         }
         else if (gTrack == 2) {
-            // снег
-            grassA = { 0.60f, 0.65f, 0.74f, 1.0f };
+                         grassA = { 0.60f, 0.65f, 0.74f, 1.0f };
             grassB = { 0.54f, 0.59f, 0.68f, 1.0f };
         }
         const Color grass = mixColor(grassA, grassB, pulse * 0.4f);
 
         if (kGfxTextures && gTexGrass != 0) {
-            // текстура в среднем темнее на 20%, поэтому цвет подсвечен
-            drawTexturedGround(
+                         drawTexturedGround(
                 -90.0f, kWorldNearZ, 90.0f, kWorldFarZ,
                 { grass.r * 1.25f, grass.g * 1.25f, grass.b * 1.25f, 1.0f },
                 0.0f, gTexGrass, 12.0f, offset
@@ -1546,8 +1436,7 @@ namespace {
             drawGroundQuad(-90.0f, kWorldNearZ, 90.0f, kWorldFarZ, grass);
         }
 
-        // полосы на траве: дают ощущение скорости (период 24 делит 72)
-        {
+                 {
             const Color mowTo =
                 gTrack == 0 ? Color{ 0.05f, 0.17f, 0.09f, 1.0f } :
                 (gTrack == 1 ? Color{ 0.58f, 0.44f, 0.24f, 1.0f } : Color{ 0.78f, 0.83f, 0.92f, 1.0f });
@@ -1560,8 +1449,7 @@ namespace {
         }
 
         if (kGfxTextures && gTexAsphalt != 0) {
-            // мокрый асфальт темнее
-            const float wetK = 1.25f * (1.0f - 0.30f * gRain);
+                         const float wetK = 1.25f * (1.0f - 0.30f * gRain);
 
             Color roadCol = { 0.065f * wetK, 0.070f * wetK, 0.077f * wetK, 1.0f };
 
@@ -1569,8 +1457,7 @@ namespace {
                 roadCol = mixColor(roadCol, { 0.30f, 0.26f, 0.20f, 1.0f }, 0.25f);
             }
             else if (gTrack == 2) {
-                // на снежной трассе дорога припорошена, при снегопаде светлее
-                roadCol = mixColor(roadCol, { 0.45f, 0.48f, 0.52f, 1.0f }, 0.30f + 0.45f * gSnow);
+                                 roadCol = mixColor(roadCol, { 0.45f, 0.48f, 0.52f, 1.0f }, 0.30f + 0.45f * gSnow);
             }
 
             drawTexturedGround(
@@ -1620,13 +1507,11 @@ namespace {
             drawBox(-6.35f, 0.33f, z, 0.15f, 0.66f, 0.15f, { 0.60f, 0.62f, 0.64f, 1.0f });
             drawBox(6.35f, 0.33f, z, 0.15f, 0.66f, 0.15f, { 0.60f, 0.62f, 0.64f, 1.0f });
 
-            // светоотражатели: слева белые, справа красные
-            drawBox(-6.35f, 0.56f, z + 0.08f, 0.10f, 0.10f, 0.03f, { 0.95f, 0.95f, 0.88f, 1.0f });
+                         drawBox(-6.35f, 0.56f, z + 0.08f, 0.10f, 0.10f, 0.03f, { 0.95f, 0.95f, 0.88f, 1.0f });
             drawBox(6.35f, 0.56f, z + 0.08f, 0.10f, 0.10f, 0.03f, { 0.95f, 0.18f, 0.12f, 1.0f });
         }
 
-        // ночью отражатели светятся в свете фар
-        if (gNightLevel > 0.15f) {
+                 if (gNightLevel > 0.15f) {
             beginGlow();
 
             for (float z = kWorldNearZ + std::fmod(offset, 12.0f); z > kWorldFarZ; z -= 12.0f) {
@@ -1637,8 +1522,7 @@ namespace {
             endGlow();
         }
 
-        // колеи от шин в центре каждой полосы
-        for (int lane = 0; lane < 3; ++lane) {
+                 for (int lane = 0; lane < 3; ++lane) {
             const float cx = (static_cast<float>(lane) - 1.0f) * kLaneWidth;
             const Color track = { 0.052f, 0.056f, 0.063f, 1.0f };
 
@@ -1646,8 +1530,7 @@ namespace {
             drawGroundQuad(cx + 0.55f, kWorldNearZ, cx + 1.05f, kWorldFarZ, track, 0.013f);
         }
 
-        // лужи на мокрой дороге: привязаны к пройденному пути, поэтому не прыгают
-        if (gRain > 0.05f) {
+                 if (gRain > 0.05f) {
             constexpr float slot = 16.0f;
 
             const int k0 = static_cast<int>(std::floor((gDist - 12.0f) / slot));
@@ -1675,11 +1558,9 @@ namespace {
                 const float rx = 0.8f + h1 * 0.9f;
                 const float rz = 2.0f + h2 * 2.6f;
 
-                // тёмное основание лужи
-                drawGroundGlow(x, z, rx, rz, { 0.0f, 0.0f, 0.0f, 0.40f * gRain }, 0.016f);
+                                 drawGroundGlow(x, z, rx, rz, { 0.0f, 0.0f, 0.0f, 0.40f * gRain }, 0.016f);
 
-                // отражение неба
-                glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+                                 glBlendFunc(GL_SRC_ALPHA, GL_ONE);
                 drawGroundGlow(x, z, rx * 0.85f, rz * 0.85f, { 0.40f, 0.52f, 0.70f, 0.22f * gRain }, 0.017f);
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             }
@@ -1687,8 +1568,7 @@ namespace {
             endGlow();
         }
 
-        // блеск мокрого асфальта, сильнее вдали
-        if (gRain > 0.01f) {
+                 if (gRain > 0.01f) {
             const float hw = kRoadWidth * 0.5f;
 
             beginGlow();
@@ -1722,8 +1602,7 @@ namespace {
                 drawCactus(11.5f, z - 11.0f, 0.8f + 0.5f * cB, { 0.10f, 0.34f, 0.14f, 1.0f });
             }
             else if (kGfxPines) {
-                // номер дерева привязан к пройденному пути, поэтому размер не прыгает
-                const int treeIdx = static_cast<int>(std::lround((gDist - z) / 24.0f));
+                                 const int treeIdx = static_cast<int>(std::lround((gDist - z) / 24.0f));
                 const float hA = fract(std::sin(static_cast<float>(treeIdx) * 12.9898f) * 43758.5453f);
                 const float hB = fract(std::sin(static_cast<float>(treeIdx) * 78.233f + 3.0f) * 12345.6789f);
 
@@ -1735,8 +1614,7 @@ namespace {
                 drawBox(11.5f - sway, 2.45f, z - 11.0f, 2.8f, 2.3f, 2.8f, { 0.035f, 0.26f, 0.095f, 1.0f });
             }
 
-            // низкие кусты вдоль обочины
-            drawBox(-9.3f, 0.30f, z - 6.0f, 1.4f, 0.60f, 1.1f, trackBush(0));
+                         drawBox(-9.3f, 0.30f, z - 6.0f, 1.4f, 0.60f, 1.1f, trackBush(0));
             drawBox(9.5f, 0.27f, z - 17.0f, 1.2f, 0.54f, 1.3f, trackBush(1));
         }
 
@@ -1768,8 +1646,7 @@ namespace {
 
             drawBox(x, h * 0.5f, z, 15.0f, h, 8.0f, { 0.045f, 0.065f, 0.080f, 1.0f });
 
-            // окна: ночью светятся, днём тёмное стекло
-            glDisable(GL_LIGHTING);
+                         glDisable(GL_LIGHTING);
 
             for (int r = 0; (1.6f + static_cast<float>(r) * 2.0f) < h - 0.8f; ++r) {
                 for (int c = 0; c < 5; ++c) {
@@ -1938,14 +1815,12 @@ namespace {
             segment(x, y, t, h, color);
             for (int k = 0; k <= 3; ++k) {
                 const float f = static_cast<float>(k) / 3.0f;
-                // upper diagonal
-                segment(
+                                 segment(
                     x + w - t - f * (w - 3.0f * t),
                     y + f * (m - y),
                     t, 2.0f * t, color
                 );
-                // lower diagonal
-                segment(
+                                 segment(
                     x + 2.0f * t + f * (w - 3.0f * t),
                     m + f * (y + h - 2.0f * t - m),
                     t, 2.0f * t, color
@@ -2084,8 +1959,7 @@ namespace {
         Color horizon;
     };
 
-    // night: 0 = день, ~0.78 = глубокая ночь
-    SkyColors skyColors(float night) {
+         SkyColors skyColors(float night) {
         const Color dayTop = { 0.10f, 0.30f, 0.58f, 1.0f };
         const Color dayHorizon = { 0.52f, 0.70f, 0.84f, 1.0f };
         const Color nightTop = { 0.008f, 0.015f, 0.045f, 1.0f };
@@ -2097,15 +1971,13 @@ namespace {
         c.top = mixColor(dayTop, nightTop, n);
         c.horizon = mixColor(dayHorizon, nightHorizon, n);
 
-        // тёплый закатный оттенок на горизонте в середине перехода
-        const float warm = 1.0f - std::abs(n * 2.0f - 1.0f);
+                 const float warm = 1.0f - std::abs(n * 2.0f - 1.0f);
         c.horizon = mixColor(c.horizon, { 0.95f, 0.45f, 0.22f, 1.0f }, warm * 0.35f);
 
         return c;
     }
 
-    // мягкое эллиптическое облачко (экранные координаты)
-    void drawSkyBlob(float cx, float cy, float rx, float ry, Color c) {
+         void drawSkyBlob(float cx, float cy, float rx, float ry, Color c) {
         constexpr int seg = 20;
 
         glBegin(GL_TRIANGLE_FAN);
@@ -2138,8 +2010,7 @@ namespace {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-        // градиент неба: верх -> горизонт, ниже горизонта сплошной цвет тумана
-        glBegin(GL_QUADS);
+                 glBegin(GL_QUADS);
         setColor(sky.top);
         glVertex2f(0.0f, 0.0f);
         glVertex2f(w, 0.0f);
@@ -2153,8 +2024,7 @@ namespace {
         glVertex2f(0.0f, h);
         glEnd();
 
-        // солнце: днём высоко, на закате опускается и гаснет
-        {
+                 {
             const float dayK = (1.0f - gNightLevel) * (1.0f - gRain * 0.85f);
 
             if (dayK > 0.01f) {
@@ -2171,8 +2041,7 @@ namespace {
             }
         }
 
-        // ночью над горизонтом теплится свет далёкого города
-        {
+                 {
             const float cityK = std::clamp((night - 0.30f) / 0.35f, 0.0f, 1.0f) * (1.0f - gRain * 0.6f);
 
             if (cityK > 0.01f) {
@@ -2189,8 +2058,7 @@ namespace {
             }
         }
 
-        // дальние холмы двумя слоями, тёмнее вблизи
-        for (int layer = 0; layer < 2; ++layer) {
+                 for (int layer = 0; layer < 2; ++layer) {
             const float lf = static_cast<float>(layer);
             const Color hc = mixColor(sky.horizon, { 0.03f, 0.06f, 0.07f, 1.0f }, layer == 0 ? 0.22f : 0.42f);
             const float baseH = h * (layer == 0 ? 0.10f : 0.07f);
@@ -2214,8 +2082,7 @@ namespace {
         const float nightAmount = std::clamp((night - 0.30f) / 0.35f, 0.0f, 1.0f) * (1.0f - gRain * 0.9f);
 
         if (nightAmount > 0.01f) {
-            // звёзды
-            glPointSize(2.0f);
+                         glPointSize(2.0f);
             glBegin(GL_POINTS);
 
             for (int i = 0; i < 140; ++i) {
@@ -2231,8 +2098,7 @@ namespace {
 
             glEnd();
 
-            // луна и мягкое свечение вокруг неё
-            const float mx = w * 0.78f;
+                         const float mx = w * 0.78f;
             const float my = h * 0.13f;
             const float r = 26.0f * (h / 720.0f);
 
@@ -2258,8 +2124,7 @@ namespace {
             glEnd();
         }
 
-        // облака: медленно плывут, в дождь плотнее и темнее
-        {
+                 {
             const Color cloudDay = { 0.96f, 0.97f, 1.0f, 1.0f };
             const Color cloudNight = { 0.10f, 0.12f, 0.20f, 1.0f };
             const Color cloudStorm = { 0.30f, 0.32f, 0.36f, 1.0f };
@@ -2301,15 +2166,12 @@ namespace {
         glEnable(GL_DEPTH_TEST);
     }
 
-    // ---------- HUD helpers ----------
-
+     
     int gPrevCombo = 0;
     float gComboPulseStart = -100.0f;
-    float gMilestoneStart = -100.0f;   // всплывающая надпись на комбо 5, 10, 15
-    int gMilestoneCombo = 0;
+    float gMilestoneStart = -100.0f;        int gMilestoneCombo = 0;
 
-    // панель со срезанными углами и цветной рамкой
-    void drawPanel(float x, float y, float w, float h, Color bg, Color accent) {
+         void drawPanel(float x, float y, float w, float h, Color bg, Color accent) {
         const float c = 10.0f;
 
         const float px[8] = { x + c, x + w - c, x + w, x + w, x + w - c, x + c, x, x };
@@ -2333,8 +2195,7 @@ namespace {
         glEnd();
     }
 
-    // шкала из сегментов
-    void drawSegBar(float x, float y, float w, float h, float value, int segments, Color fill, Color bg) {
+         void drawSegBar(float x, float y, float w, float h, float value, int segments, Color fill, Color bg) {
         value = std::clamp(value, 0.0f, 1.0f);
 
         drawOverlayRect(x, y, w, h, bg);
@@ -2364,34 +2225,29 @@ namespace {
         drawText(text, cx - textWidth(text, scale) * 0.5f, y, scale, color);
     }
 
-    // красная виньетка по краям экрана
-    void drawEdgeGlow(float w, float h, Color c) {
+         void drawEdgeGlow(float w, float h, Color c) {
         const float sideW = w * 0.14f;
         const float sideH = h * 0.22f;
         const Color clear = { c.r, c.g, c.b, 0.0f };
 
         glBegin(GL_QUADS);
 
-        // левый
-        setColor(c); glVertex2f(0.0f, 0.0f);
+                 setColor(c); glVertex2f(0.0f, 0.0f);
         setColor(clear); glVertex2f(sideW, 0.0f);
         setColor(clear); glVertex2f(sideW, h);
         setColor(c); glVertex2f(0.0f, h);
 
-        // правый
-        setColor(clear); glVertex2f(w - sideW, 0.0f);
+                 setColor(clear); glVertex2f(w - sideW, 0.0f);
         setColor(c); glVertex2f(w, 0.0f);
         setColor(c); glVertex2f(w, h);
         setColor(clear); glVertex2f(w - sideW, h);
 
-        // верхний
-        setColor(c); glVertex2f(0.0f, 0.0f);
+                 setColor(c); glVertex2f(0.0f, 0.0f);
         setColor(c); glVertex2f(w, 0.0f);
         setColor(clear); glVertex2f(w, sideH);
         setColor(clear); glVertex2f(0.0f, sideH);
 
-        // нижний
-        setColor(clear); glVertex2f(0.0f, h - sideH);
+                 setColor(clear); glVertex2f(0.0f, h - sideH);
         setColor(clear); glVertex2f(w, h - sideH);
         setColor(c); glVertex2f(w, h);
         setColor(c); glVertex2f(0.0f, h);
@@ -2399,8 +2255,7 @@ namespace {
         glEnd();
     }
 
-    // ---------- Эффекты скорости ----------
-
+     
     struct Particle {
         float x, y, z;
         float vx, vy, vz;
@@ -2408,16 +2263,11 @@ namespace {
         float maxLife;
         float size;
         Color color;
-        float gravity = 2.0f;   // отрицательная: частица поднимается (дым)
-    };
+        float gravity = 2.0f;        };
 
     std::vector<Particle> gParticles;
 
-    float gBoostBlend = 0.0f;   // 0..1, плавно растёт при бусте
-    float gFovExtra = 0.0f;     // добавка к углу обзора
-    float gShake = 0.0f;        // тряска при ударе
-    float gHitFlash = 0.0f;     // красная вспышка при ударе
-    float gPrevHealth = 100.0f;
+    float gBoostBlend = 0.0f;        float gFovExtra = 0.0f;          float gShake = 0.0f;             float gHitFlash = 0.0f;          float gPrevHealth = 100.0f;
     float gLastTime = 0.0f;
     float gDustAcc = 0.0f;
     float gEmberAcc = 0.0f;
@@ -2442,8 +2292,7 @@ namespace {
         float dt = t - gLastTime;
 
         if (dt < 0.0f) {
-            // перезапуск игры
-            gParticles.clear();
+                         gParticles.clear();
             gSkids.clear();
             gSkidPrev = false;
             gShake = 0.0f;
@@ -2456,14 +2305,12 @@ namespace {
         dt = std::min(dt, 0.25f);
         gLastTime = t;
 
-        // пройденный путь теперь считает Game
-        gDist = game.distance();
+                 gDist = game.distance();
 
         gBrake += ((game.braking() ? 1.0f : 0.0f) - gBrake) * std::min(1.0f, dt * 14.0f);
         gPlayerZ = game.playerZ();
 
-        // где сейчас туннель относительно машины
-        gTunnelValid = false;
+                 gTunnelValid = false;
         gTunnelInside = game.tunnelInside();
 
         float ta = 0.0f;
@@ -2502,8 +2349,7 @@ namespace {
         gShake *= std::exp(-dt * 5.0f);
         gHitFlash *= std::exp(-dt * 4.0f);
 
-        // удар: тряска, вспышка и искры
-        if (game.health() < gPrevHealth - 0.5f) {
+                 if (game.health() < gPrevHealth - 0.5f) {
             gShake = 1.0f;
             gHitFlash = 1.0f;
 
@@ -2522,8 +2368,7 @@ namespace {
             return;
         }
 
-        // следы шин и дым: торможение на скорости, занос на масле, резкая смена полосы
-        {
+                 {
             const bool skidding =
                 game.state() == GameState::Running &&
                 ((game.braking() && speed > 120.0f) || game.oilActive() || std::abs(game.playerYaw()) > 7.5f);
@@ -2558,8 +2403,7 @@ namespace {
                 gSkidSmokeAcc = 0.0f;
             }
 
-            // следы остаются позади и пропадают, когда уходят за экран
-            gSkids.erase(
+                         gSkids.erase(
                 std::remove_if(
                     gSkids.begin(),
                     gSkids.end(),
@@ -2569,8 +2413,7 @@ namespace {
             );
         }
 
-        // пыль из-под колёс на высокой скорости
-        gDustAcc += dt * 45.0f * std::clamp((speed - 100.0f) / 200.0f, 0.0f, 1.0f);
+                 gDustAcc += dt * 45.0f * std::clamp((speed - 100.0f) / 200.0f, 0.0f, 1.0f);
         while (gDustAcc >= 1.0f) {
             gDustAcc -= 1.0f;
             const float side = rnd() < 0.5f ? -0.75f : 0.75f;
@@ -2583,8 +2426,7 @@ namespace {
             );
         }
 
-        // брызги из-под колёс на мокрой дороге
-        if (gRain > 0.15f) {
+                 if (gRain > 0.15f) {
             gSprayAcc += dt * 90.0f * gRain * std::clamp(speed / 200.0f, 0.2f, 1.5f);
 
             while (gSprayAcc >= 1.0f) {
@@ -2603,8 +2445,7 @@ namespace {
             gSprayAcc = 0.0f;
         }
 
-        // брызги из-под колёс машин потока в дождь
-        if (kGfxWetExtras && gRain > 0.25f) {
+                 if (kGfxWetExtras && gRain > 0.25f) {
             for (const auto& v : game.traffic()) {
                 if (v.z > pz + 2.0f || v.z < pz - 85.0f) {
                     continue;
@@ -2626,8 +2467,7 @@ namespace {
             }
         }
 
-        // дым из-под капота при низком здоровье, при совсем низком ещё и искры
-        const float hpNow = game.health();
+                 const float hpNow = game.health();
 
         if (hpNow <= 45.0f && game.state() == GameState::Running) {
             const float sev = 1.0f - hpNow / 45.0f;
@@ -2659,8 +2499,7 @@ namespace {
             gSmokeAcc = 0.0f;
         }
 
-        // искры из выхлопа при бусте
-        if (game.boosting()) {
+                 if (game.boosting()) {
             gEmberAcc += dt * 120.0f;
             while (gEmberAcc >= 1.0f) {
                 gEmberAcc -= 1.0f;
@@ -2728,8 +2567,7 @@ namespace {
         endGlow();
     }
 
-    // молния: редкие короткие вспышки при сильном дожде
-    float lightningFlash(float t) {
+         float lightningFlash(float t) {
         if (gRain < 0.6f) {
             return 0.0f;
         }
@@ -2747,8 +2585,7 @@ namespace {
         return (1.0f - c * 10.0f) * (0.65f + 0.35f * std::sin(c * 140.0f));
     }
 
-    // капли дождя на экране
-    void drawRain(float w, float h, float t, float speedKmh) {
+         void drawRain(float w, float h, float t, float speedKmh) {
         if (gRain < 0.02f) {
             return;
         }
@@ -2782,8 +2619,7 @@ namespace {
         glLineWidth(1.0f);
     }
 
-    // снегопад: медленные белые точки, дрейфуют вбок
-    void drawSnow(float w, float h, float t, float speedKmh) {
+         void drawSnow(float w, float h, float t, float speedKmh) {
         if (gSnow < 0.02f) {
             return;
         }
@@ -2811,8 +2647,7 @@ namespace {
         glPointSize(1.0f);
     }
 
-    // линии скорости, расходящиеся от точки схода
-    void drawSpeedLines(float w, float h, float t, float speedKmh, float fxScale) {
+         void drawSpeedLines(float w, float h, float t, float speedKmh, float fxScale) {
         const float intensity = fxScale * (
             std::clamp((speedKmh - 170.0f) / 150.0f, 0.0f, 1.0f) * 0.30f +
             gBoostBlend * 0.45f);
@@ -2853,8 +2688,7 @@ namespace {
         glLineWidth(1.0f);
     }
 
-    // мигающий красно-синий свет полиции на дороге вокруг машины игрока
-    void drawPoliceGlow(float px, float pz, float intensity, float t) {
+         void drawPoliceGlow(float px, float pz, float intensity, float t) {
         if (intensity < 0.01f) {
             return;
         }
@@ -2879,8 +2713,7 @@ namespace {
         endGlow();
     }
 
-    // зеркало заднего вида: полицейская машина приближается сзади
-    void drawRearMirror(float x, float y, float w, float h, int winH, float gap, float policeRel, float t) {
+         void drawRearMirror(float x, float y, float w, float h, int winH, float gap, float policeRel, float t) {
         const bool phase = fract(t * 3.0f) < 0.5f;
 
         const Color red = { 1.0f, 0.12f, 0.10f, 1.0f };
@@ -2909,8 +2742,7 @@ namespace {
         const float topHalf = iw * 0.06f;
         const float botHalf = iw * 0.50f;
 
-        // небо и трава
-        glBegin(GL_QUADS);
+                 glBegin(GL_QUADS);
         setColor({ 0.10f, 0.13f, 0.20f, 1.0f });
         glVertex2f(ix, iy);
         glVertex2f(ix + iw, iy);
@@ -2924,16 +2756,14 @@ namespace {
         glVertex2f(ix + iw, bottom);
         glVertex2f(ix, bottom);
 
-        // дорога
-        setColor({ 0.10f, 0.11f, 0.13f, 1.0f });
+                 setColor({ 0.10f, 0.11f, 0.13f, 1.0f });
         glVertex2f(cx - topHalf, horizon);
         glVertex2f(cx + topHalf, horizon);
         glVertex2f(cx + botHalf, bottom);
         glVertex2f(cx - botHalf, bottom);
         glEnd();
 
-        // разметка полос
-        setColor({ 0.80f, 0.80f, 0.70f, 0.70f });
+                 setColor({ 0.80f, 0.80f, 0.70f, 0.70f });
         glLineWidth(1.5f);
         glBegin(GL_LINES);
         for (int k = -1; k <= 1; k += 2) {
@@ -2942,8 +2772,7 @@ namespace {
         }
         glEnd();
 
-        // полицейская машина: чем меньше расстояние, тем она ниже и крупнее
-        const float u = 1.0f / (1.0f + std::max(gap, 0.0f) * 0.06f);
+                 const float u = 1.0f / (1.0f + std::max(gap, 0.0f) * 0.06f);
         const float py = horizon + (bottom - horizon) * u;
         const float hw = topHalf + (botHalf - topHalf) * u;
         const float carW = hw * 0.34f * (1.0f + 1.2f * u * u);
@@ -2960,12 +2789,10 @@ namespace {
         drawOverlayRect(carX - carW * 0.45f, py - carH * 0.34f, carW * 0.18f, carH * 0.15f, headLight);
         drawOverlayRect(carX + carW * 0.27f, py - carH * 0.34f, carW * 0.18f, carH * 0.15f, headLight);
 
-        // мигалка
-        drawOverlayRect(carX - carW * 0.36f, barY, carW * 0.36f, barH, phase ? red : redDim);
+                 drawOverlayRect(carX - carW * 0.36f, barY, carW * 0.36f, barH, phase ? red : redDim);
         drawOverlayRect(carX, barY, carW * 0.36f, barH, phase ? blueDim : blue);
 
-        // свечение мигалки и фар
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+                 glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
         drawGlow(carX - carW * 0.18f, barY + barH * 0.5f, 0.0f, carW * 0.75f, { 1.0f, 0.10f, 0.08f, phase ? 0.75f : 0.10f });
         drawGlow(carX + carW * 0.18f, barY + barH * 0.5f, 0.0f, carW * 0.75f, { 0.15f, 0.35f, 1.0f, phase ? 0.10f : 0.75f });
@@ -2988,8 +2815,7 @@ namespace {
         drawBox(14.0f, 6.0f, z, 13.0f, 12.0f, 2.0f, concrete);
         drawBox(0.0f, 10.5f, z, 15.0f, 3.0f, 2.0f, concrete);
 
-        // неоновая арка
-        drawBox(0.0f, 8.7f, z + 1.05f, 14.0f, 0.22f, 0.12f, { 1.0f, 0.25f, 0.75f, 1.0f });
+                 drawBox(0.0f, 8.7f, z + 1.05f, 14.0f, 0.22f, 0.12f, { 1.0f, 0.25f, 0.75f, 1.0f });
         drawBox(-7.1f, 4.3f, z + 1.05f, 0.22f, 8.6f, 0.12f, { 0.20f, 0.90f, 1.0f, 1.0f });
         drawBox(7.1f, 4.3f, z + 1.05f, 0.22f, 8.6f, 0.12f, { 0.20f, 0.90f, 1.0f, 1.0f });
     }
@@ -3009,19 +2835,16 @@ namespace {
 
         glDisable(GL_LIGHTING);
 
-        // стены и потолок
-        drawBox(-wallX - 0.25f, wallH * 0.5f, cz, 0.5f, wallH, len, { 0.09f, 0.10f, 0.12f, 1.0f });
+                 drawBox(-wallX - 0.25f, wallH * 0.5f, cz, 0.5f, wallH, len, { 0.09f, 0.10f, 0.12f, 1.0f });
         drawBox(wallX + 0.25f, wallH * 0.5f, cz, 0.5f, wallH, len, { 0.09f, 0.10f, 0.12f, 1.0f });
         drawBox(0.0f, wallH + 0.25f, cz, 2.0f * wallX + 1.5f, 0.5f, len, { 0.06f, 0.065f, 0.08f, 1.0f });
 
-        // неоновые полосы вдоль стен
-        drawBox(-wallX + 0.1f, 7.3f, cz, 0.12f, 0.12f, len, { 0.20f, 0.90f, 1.0f, 1.0f });
+                 drawBox(-wallX + 0.1f, 7.3f, cz, 0.12f, 0.12f, len, { 0.20f, 0.90f, 1.0f, 1.0f });
         drawBox(wallX - 0.1f, 7.3f, cz, 0.12f, 0.12f, len, { 1.0f, 0.25f, 0.75f, 1.0f });
         drawBox(-wallX + 0.1f, 0.6f, cz, 0.12f, 0.12f, len, { 1.0f, 0.70f, 0.20f, 1.0f });
         drawBox(wallX - 0.1f, 0.6f, cz, 0.12f, 0.12f, len, { 1.0f, 0.70f, 0.20f, 1.0f });
 
-        // рёбра обделки, дают ощущение скорости
-        const float firstD = std::ceil(gTunLoD / 12.0f) * 12.0f;
+                 const float firstD = std::ceil(gTunLoD / 12.0f) * 12.0f;
 
         for (float d = firstD; d < gTunHiD; d += 12.0f) {
             const float z = pz - (d - gDist);
@@ -3031,8 +2854,7 @@ namespace {
             drawBox(wallX - 0.15f, wallH * 0.5f, z, 0.3f, wallH, 0.8f, { 0.15f, 0.16f, 0.19f, 1.0f });
             drawBox(0.0f, wallH - 0.15f, z, 2.0f * wallX, 0.3f, 0.8f, { 0.12f, 0.13f, 0.16f, 1.0f });
 
-            // потолочные лампы
-            if (idx % 2 == 0) {
+                         if (idx % 2 == 0) {
                 drawBox(0.0f, wallH - 0.05f, z, 2.4f, 0.06f, 1.2f, { 1.0f, 0.95f, 0.80f, 1.0f });
             }
         }
@@ -3045,8 +2867,7 @@ namespace {
             drawPortal(gTunEndZ - 1.0f);
         }
 
-        // свет ламп на асфальте
-        for (float d = firstD; d < gTunHiD; d += 12.0f) {
+                 for (float d = firstD; d < gTunHiD; d += 12.0f) {
             const int idx = static_cast<int>(std::lround(d / 12.0f));
 
             if (idx % 2 == 0) {
@@ -3075,8 +2896,7 @@ bool Renderer::initialize()
     glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
     glShadeModel(GL_SMOOTH);
 
-    // сглаживание (нужен GLFW_SAMPLES в main.cpp), точные блики, чёткая перспектива
-    glEnable(GL_MULTISAMPLE);
+         glEnable(GL_MULTISAMPLE);
     glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER, GL_TRUE);
     glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
 
@@ -3121,29 +2941,24 @@ void Renderer::render(const Game& game)
 
     SkyColors sky = skyColors(night);
 
-    // дождь берём из Game: та же формула, что и для управления;
-    // в туннеле уже 0
-    gTrack = game.track();
+              gTrack = game.track();
 
     gRain = game.rain();
 
-    // на снежной трассе тот же уровень осадков рисуется снегом, а не дождём
-    gSnow = 0.0f;
+         gSnow = 0.0f;
 
     if (gTrack == 2) {
         gSnow = gRain;
         gRain = 0.0f;
     }
 
-    // грозовое небо: серое, темнее ночью
-    const float nn = std::clamp(night / 0.78f, 0.0f, 1.0f);
+         const float nn = std::clamp(night / 0.78f, 0.0f, 1.0f);
     const Color stormTop = mixColor({ 0.30f, 0.33f, 0.38f, 1.0f }, { 0.02f, 0.03f, 0.05f, 1.0f }, nn);
     const Color stormHorizon = mixColor({ 0.50f, 0.53f, 0.57f, 1.0f }, { 0.06f, 0.08f, 0.11f, 1.0f }, nn);
     sky.top = mixColor(sky.top, stormTop, gRain * 0.75f);
     sky.horizon = mixColor(sky.horizon, stormHorizon, gRain * 0.75f);
 
-    // небо на разных трассах: жаркое в пустыне, серо-белое над снегом
-    if (gTrack == 1) {
+         if (gTrack == 1) {
         sky.top = mixColor(sky.top, { 0.28f, 0.46f, 0.74f, 1.0f }, 0.45f * (1.0f - nn));
         sky.horizon = mixColor(sky.horizon, { 0.96f, 0.80f, 0.58f, 1.0f }, 0.55f * (1.0f - nn));
     }
@@ -3154,8 +2969,7 @@ void Renderer::render(const Game& game)
 
     gNightLevel = std::clamp((night - 0.30f) / 0.35f, 0.0f, 1.0f);
 
-    // отражение неба на кузове: чуть светлее горизонта
-    gReflSky = mixColor(sky.horizon, { 1.0f, 1.0f, 1.0f, 1.0f }, 0.25f);
+         gReflSky = mixColor(sky.horizon, { 1.0f, 1.0f, 1.0f, 1.0f }, 0.25f);
 
     updateEffects(game);
 
@@ -3163,8 +2977,7 @@ void Renderer::render(const Game& game)
     gDriverTime = game.worldTime();
     gDriverWind = std::clamp(game.speed() / std::max(game.maxSpeed(), 1.0f), 0.0f, 1.0f);
 
-    // водитель: если впереди машина - обе руки на руль, проехали - рука снова на окне
-    {
+         {
         static float prevT = 0.0f;
         static float hold = 0.0f;
 
@@ -3175,8 +2988,7 @@ void Renderer::render(const Game& game)
         bool carAhead = false;
 
         for (const auto& v : game.traffic()) {
-            const float ahead = game.playerZ() - v.z;                 // > 0: машина впереди
-            const float side = std::fabs(v.x - game.playerX());
+            const float ahead = game.playerZ() - v.z;                              const float side = std::fabs(v.x - game.playerX());
 
             if (ahead > -3.0f && ahead < 40.0f && side < 2.2f) {
                 carAhead = true;
@@ -3184,26 +2996,22 @@ void Renderer::render(const Game& game)
             }
         }
 
-        // держим руки на руле ещё 0.7 с после того, как машина осталась позади
-        hold = carAhead ? 0.7f : std::max(0.0f, hold - dtD);
+                 hold = carAhead ? 0.7f : std::max(0.0f, hold - dtD);
 
         const float target = hold > 0.0f ? 1.0f : 0.0f;
 
         gDriverAlert += (target - gDriverAlert) * std::min(1.0f, dtD * 9.0f);
     }
 
-    // в туннеле туман и фон тёмные, чтобы дальний конец не светился днём
-    const Color tunnelFog = { 0.02f, 0.02f, 0.04f, 1.0f };
+         const Color tunnelFog = { 0.02f, 0.02f, 0.04f, 1.0f };
     const Color fogC = mixColor(sky.horizon, tunnelFog, gTunnelInside);
 
     glClearColor(fogC.r, fogC.g, fogC.b, 1.0f);
 
-    // туман того же цвета, что и горизонт: земля плавно растворяется вдали
-    const GLfloat fogColor[] = { fogC.r, fogC.g, fogC.b, 1.0f };
+         const GLfloat fogColor[] = { fogC.r, fogC.g, fogC.b, 1.0f };
     glFogfv(GL_FOG_COLOR, fogColor);
 
-    // в дождь видимость хуже
-    const float vis = std::max(gRain, gSnow * 0.8f);
+         const float vis = std::max(gRain, gSnow * 0.8f);
 
     glFogf(GL_FOG_START, 85.0f - 45.0f * vis);
     glFogf(GL_FOG_END, 205.0f - 90.0f * vis);
@@ -3302,16 +3110,14 @@ void Renderer::renderWorld(const Game& game)
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
-    // в гараже камера кружит вокруг машины, а сама она сдвинута вправо от панели
-    const bool showroom = game.state() == GameState::Garage;
+         const bool showroom = game.state() == GameState::Garage;
 
     static const auto kShowStart = std::chrono::steady_clock::now();
     const float showTime = std::chrono::duration<float>(std::chrono::steady_clock::now() - kShowStart).count();
 
     const float cameraLean = (gBattleCamera == 1 ? game.player2Yaw() : game.playerYaw()) * 0.035f;
 
-    // тряска камеры: лёгкая при бусте, сильная при ударе
-    const float tt = game.worldTime();
+         const float tt = game.worldTime();
     const float shakeAmp = game.shakeScale() * (0.035f * gBoostBlend + 0.35f * gShake);
     const float shakeX = std::sin(tt * 47.0f) * shakeAmp;
     const float shakeY = std::sin(tt * 61.0f + 1.3f) * shakeAmp * 0.7f;
@@ -3321,8 +3127,7 @@ void Renderer::renderWorld(const Game& game)
         const float px = game.playerX();
         const float pz = game.playerZ();
 
-        // сдвиг в системе камеры: машина уходит вправо и чуть вверх
-        glTranslatef(3.3f, 0.75f, 0.0f);
+                 glTranslatef(3.3f, 0.75f, 0.0f);
 
         lookAt(
             { px + std::sin(ang) * 6.8f, 1.9f, pz + std::cos(ang) * 6.8f },
@@ -3342,9 +3147,7 @@ void Renderer::renderWorld(const Game& game)
 
     glLightfv(GL_LIGHT0, GL_POSITION, lightPosition);
 
-    // свет меняется со временем суток: тёплое солнце, холодная луна,
-    // серое небо в дождь и тёплые лампы в туннеле
-    if (kGfxDynamicLight) {
+              if (kGfxDynamicLight) {
         const float nl = gNightLevel;
 
         Color amb = mixColor({ 0.28f, 0.30f, 0.34f, 1.0f }, { 0.09f, 0.11f, 0.20f, 1.0f }, nl);
@@ -3382,8 +3185,7 @@ void Renderer::renderWorld(const Game& game)
         glTranslatef(0.0f, 0.0f, game.player2Distance() - game.distance());
     }
 
-    // витрина гаража: только выбранная курсором машина, цвет берётся с курсора покраски
-    if (showroom) {
+         if (showroom) {
         const CarLook look = carLook(game.carCursor());
 
         drawCarModel(
@@ -3435,13 +3237,11 @@ void Renderer::renderWorld(const Game& game)
             vehicle.type,
             0.0f,
             false,
-            // колёса крутятся по мере движения машины вперёд (relativeSpeed < 0 = едет вперёд)
-            std::fmod(vehicle.relativeSpeed * game.worldTime() / 0.31f, 2.0f * kPi)
+                         std::fmod(vehicle.relativeSpeed * game.worldTime() / 0.31f, 2.0f * kPi)
         );
     }
 
-    // поворотник включается, пока машина перестраивается в другую полосу
-    if (game.gameMode() == GameMode::TwoPlayerBattle && game.state() != GameState::Menu)
+         if (game.gameMode() == GameMode::TwoPlayerBattle && game.state() != GameState::Menu)
     {
         const CarLook secondLook = carLook(game.selectedCar());
         if (game.player2Z() + (secondView ? game.player2Distance() - game.distance() : 0.0f) > -260.0f &&
@@ -3465,14 +3265,12 @@ void Renderer::renderWorld(const Game& game)
         playerLook.type,
         game.playerYaw(),
         true,
-        // колёса крутятся по пройденному пути (радиус колеса 0.31 м)
-        std::fmod(game.distance() / 0.31f, 2.0f * kPi),
+                 std::fmod(game.distance() / 0.31f, 2.0f * kPi),
         signalDir,
         game.worldTime()
     );
 
-    // щит: голубой пузырь вокруг машины, в последние секунды мигает
-    if (game.shieldTimer() > 0.0f) {
+         if (game.shieldTimer() > 0.0f) {
         const float blink = game.shieldTimer() < 3.0f ? 0.55f + 0.45f * std::sin(tt * 16.0f) : 1.0f;
         const float pulseS = 0.85f + 0.15f * std::sin(tt * 5.0f);
 
@@ -3482,8 +3280,7 @@ void Renderer::renderWorld(const Game& game)
         endGlow();
     }
 
-    // магнит: оранжевое кольцо на дороге вокруг машины
-    if (game.magnetTimer() > 0.0f) {
+         if (game.magnetTimer() > 0.0f) {
         const float blink = game.magnetTimer() < 3.0f ? 0.55f + 0.45f * std::sin(tt * 16.0f) : 1.0f;
         const float pulseM = 1.0f + 0.12f * std::sin(tt * 6.0f);
 
@@ -3517,8 +3314,7 @@ void Renderer::renderWorld(const Game& game)
 
     drawParticles();
 
-    // свет полицейской мигалки на дороге
-    float policeLight = 0.0f;
+         float policeLight = 0.0f;
 
     if (game.chaseState() == ChaseState::Warning) {
         policeLight = 0.45f;
@@ -3558,8 +3354,7 @@ void Renderer::renderHud(const Game& game)
     const Color panelBg = { 0.015f, 0.020f, 0.027f, 0.82f };
     const Color labelColor = { 0.76f, 0.84f, 0.90f, 1.0f };
 
-    // Dedicated home screen. Do not draw gameplay HUD or paused/game-over overlays.
-    if (game.state() == GameState::Menu)
+         if (game.state() == GameState::Menu)
     {
         const float scale = std::min(w / 1600.0f, h / 900.0f);
         const float px = 62.0f * scale;
@@ -3571,8 +3366,7 @@ void Renderer::renderHud(const Game& game)
         const Color muted = { 0.65f, 0.76f, 0.85f, 1.0f };
         const Color red = { 1.0f, 0.29f, 0.38f, 1.0f };
         const auto sx = [&](float n) { return n * scale; };
-        // Road stays visible as an animated hero background, without gameplay widgets.
-        drawOverlayRect(0.0f, 0.0f, w, h, { 0.005f, 0.013f, 0.032f, 0.62f });
+                 drawOverlayRect(0.0f, 0.0f, w, h, { 0.005f, 0.013f, 0.032f, 0.62f });
         drawOverlayRect(0.0f, 0.0f, sx(660), h, { 0.007f, 0.018f, 0.037f, 0.80f });
         drawOverlayRect(0.0f, 0.0f, w, sx(8), cyan);
         drawText("HIGHWAY", sx(75), sx(34), 1.15f * scale, white);
@@ -3606,8 +3400,7 @@ void Renderer::renderHud(const Game& game)
         button(506, 59, { 0.065f, 0.035f, 0.055f, 0.96f },
                { 0.75f, 0.30f, 0.34f, 1.0f }, "EXIT GAME", "", 0.48f);
 
-        // Separate player profile, so garage currency and progression remain visible.
-        const float infoX = std::max(sx(745), w - sx(560));
+                 const float infoX = std::max(sx(745), w - sx(560));
         const float infoY = h - sx(232);
         drawPanel(infoX, infoY, sx(470), sx(175),
                   { 0.007f, 0.019f, 0.037f, 0.90f },
@@ -3628,8 +3421,7 @@ void Renderer::renderHud(const Game& game)
     }
 
 
-    // импульс при росте комбо
-    if (game.combo() > gPrevCombo) {
+         if (game.combo() > gPrevCombo) {
         gComboPulseStart = t;
 
         if (game.combo() % 5 == 0) {
@@ -3645,13 +3437,9 @@ void Renderer::renderHud(const Game& game)
     }
     const float pulse = std::exp(-since * 7.0f);
 
-    // в гараже обычный HUD не рисуем: справа виден вращающийся автомобиль
-    if (game.state() != GameState::Garage) {
+         if (game.state() != GameState::Garage) {
 
-        // линии скорости, дождь, молния и красная вспышка при ударе
-        // (gRain уже равен 0 в туннеле, отдельной обработки не нужно)
-        // затемнение по краям на большой скорости (эффект «туннельного зрения»)
-        const float speedVignette = game.speedFxScale() * (
+                                   const float speedVignette = game.speedFxScale() * (
             0.10f +
             std::clamp((game.speedKmh() - 200.0f) / 250.0f, 0.0f, 1.0f) * 0.35f +
             gBoostBlend * 0.20f);
@@ -3675,16 +3463,14 @@ void Renderer::renderHud(const Game& game)
             drawOverlayRect(0.0f, 0.0f, w, h, { 1.0f, 0.10f, 0.05f, 0.30f * gHitFlash });
         }
 
-        // красная виньетка при низком здоровье
-        if (hp <= 35.0f && game.state() == GameState::Running) {
+                 if (hp <= 35.0f && game.state() == GameState::Running) {
             const float severity = 0.5f + 0.5f * (35.0f - hp) / 35.0f;
             const float a = (0.22f + 0.16f * std::sin(t * 7.0f)) * severity;
 
             drawEdgeGlow(w, h, { 0.95f, 0.05f, 0.03f, std::max(0.0f, a) });
         }
 
-        // бонус за пройденный путь
-        if (game.milestoneTimer() > 0.0f && game.state() == GameState::Running) {
+                 if (game.milestoneTimer() > 0.0f && game.state() == GameState::Running) {
             const float fade = std::min(1.0f, game.milestoneTimer() / 2.5f * 2.0f);
 
             drawTextCentered(
@@ -3694,8 +3480,7 @@ void Renderer::renderHud(const Game& game)
             drawTextCentered("BONUS 8 COINS", centerX, h * 0.42f + 52.0f, 0.32f, { 1.0f, 0.88f, 0.28f, fade });
         }
 
-        // всплывающая надпись при комбо 5, 10 и 15
-        {
+                 {
             const float ms = t - gMilestoneStart;
 
             if (ms >= 0.0f && ms < 1.6f && game.state() == GameState::Running) {
@@ -3717,16 +3502,14 @@ void Renderer::renderHud(const Game& game)
             }
         }
 
-        // ---- Счёт ----
-        drawPanel(20.0f, 18.0f, 290.0f, 114.0f, panelBg, { 1.0f, 0.78f, 0.20f, 0.85f });
+                 drawPanel(20.0f, 18.0f, 290.0f, 114.0f, panelBg, { 1.0f, 0.78f, 0.20f, 0.85f });
 
         drawText("SCORE", 36.0f, 30.0f, 0.38f, labelColor);
         drawText(std::to_string(game.score()), 36.0f, 57.0f, 0.62f, { 1.0f, 0.83f, 0.22f, 1.0f });
         drawText("COINS", 36.0f, 96.0f, 0.30f, { 0.95f, 0.84f, 0.35f, 1.0f });
         drawText(std::to_string(game.coins()), 142.0f, 93.0f, 0.36f, { 1.0f, 0.92f, 0.30f, 1.0f });
 
-        // ---- Задание на забег ----
-        {
+                 {
             const bool done = game.missionDone();
             const int target = game.missionTarget();
             const int prog = std::min(game.missionProgress(), target);
@@ -3749,8 +3532,7 @@ void Renderer::renderHud(const Game& game)
             }
         }
 
-        // ---- Рекорд и комбо ----
-        drawPanel(w - 312.0f, 18.0f, 292.0f, 114.0f, panelBg, { 0.42f, 0.85f, 1.0f, 0.85f });
+                 drawPanel(w - 312.0f, 18.0f, 292.0f, 114.0f, panelBg, { 0.42f, 0.85f, 1.0f, 0.85f });
 
         drawText("HIGH", w - 292.0f, 30.0f, 0.38f, labelColor);
         drawText(std::to_string(game.highScore()), w - 292.0f, 57.0f, 0.62f, { 0.42f, 0.85f, 1.0f, 1.0f });
@@ -3768,8 +3550,7 @@ void Renderer::renderHud(const Game& game)
             );
         }
 
-        // ---- Скорость и буст ----
-        const bool boosting = game.boosting();
+                 const bool boosting = game.boosting();
         const float boostGlow = boosting ? 0.5f + 0.5f * std::sin(t * 14.0f) : 0.0f;
 
         const Color speedAccent =
@@ -3804,8 +3585,7 @@ void Renderer::renderHud(const Game& game)
             { 0.08f, 0.11f, 0.14f, 0.95f }
         );
 
-        // ---- TIME WARP HUD ----
-        if (game.state() == GameState::Running) {
+                 if (game.state() == GameState::Running) {
             const bool warpActive = game.timeWarpActive();
             const float warpTime = game.timeWarpRemaining();
             const float cooldown = game.timeWarpCooldownRemaining();
@@ -3883,8 +3663,7 @@ void Renderer::renderHud(const Game& game)
 
         }
 
-        // предупреждение о дорожных работах впереди
-
+         
         bool blockAhead = false;
 
         for (const auto& block : game.roadBlocks()) {
@@ -3910,8 +3689,7 @@ void Renderer::renderHud(const Game& game)
             drawTextCentered("WET ROAD", centerX, 142.0f, 0.28f, { 0.58f, 0.84f, 1.0f, 0.65f + 0.35f * std::sin(t * 4.0f) });
         }
 
-        // ---- Полиция ----
-        const ChaseState chase = game.chaseState();
+                 const ChaseState chase = game.chaseState();
 
         if (chase != ChaseState::Idle) {
             const bool phase = std::fmod(t * 3.0f, 1.0f) < 0.5f;
@@ -3942,8 +3720,7 @@ void Renderer::renderHud(const Game& game)
                     { 0.08f, 0.10f, 0.12f, 0.90f }
                 );
 
-                // красно-синяя вспышка по краям, когда полиция совсем близко
-                if (game.policeGap() < 55.0f) {
+                                 if (game.policeGap() < 55.0f) {
                     const float a = 0.22f * (1.0f - game.policeGap() / 55.0f);
 
                     drawEdgeGlow(
@@ -3959,8 +3736,7 @@ void Renderer::renderHud(const Game& game)
             drawTextCentered("ESCAPED 1500", centerX, 170.0f, 0.42f, { 0.35f, 1.0f, 0.50f, 1.0f });
         }
 
-        // ---- Бонусы: щит и магнит ----
-        {
+                 {
             float by = 146.0f;
 
             auto timerRow = [&](const char* label, float timer, float maxTime, Color col) {
@@ -3997,8 +3773,7 @@ void Renderer::renderHud(const Game& game)
             }
         }
 
-        // достижение получено
-        if (game.achPopupTimer() > 0.0f && game.state() == GameState::Running) {
+                 if (game.achPopupTimer() > 0.0f && game.state() == GameState::Running) {
             const float fade = std::min(1.0f, game.achPopupTimer());
             const int aid = game.achPopupId();
             const float ay = h * 0.74f - 14.0f;
@@ -4009,8 +3784,7 @@ void Renderer::renderHud(const Game& game)
             drawTextCentered("BONUS " + std::to_string(Game::achReward(aid)) + " COINS", centerX, ay + 68.0f, 0.22f, { 1.0f, 0.88f, 0.28f, fade });
         }
 
-        // ---- Здоровье и подсказки ----
-        drawPanel(12.0f, h - 76.0f, 470.0f, 68.0f, { 0.015f, 0.020f, 0.027f, 0.70f }, { 0.55f, 0.65f, 0.75f, 0.45f });
+                 drawPanel(12.0f, h - 76.0f, 470.0f, 68.0f, { 0.015f, 0.020f, 0.027f, 0.70f }, { 0.55f, 0.65f, 0.75f, 0.45f });
 
         drawText("HEALTH", 28.0f, h - 60.0f, 0.30f, { 0.82f, 0.86f, 0.90f, 1.0f });
 
@@ -4041,10 +3815,8 @@ void Renderer::renderHud(const Game& game)
             { 0.70f, 0.76f, 0.80f, 0.95f }
         );
 
-    }   // конец обычного HUD (не в гараже)
-
-    // ---- Пауза / конец игры ----
-    if (game.state() == GameState::Paused || game.state() == GameState::GameOver) {
+    }    
+         if (game.state() == GameState::Paused || game.state() == GameState::GameOver) {
         drawOverlayRect(0.0f, 0.0f, w, h, { 0.0f, 0.0f, 0.0f, 0.56f });
 
         const bool paused = game.state() == GameState::Paused;
@@ -4100,8 +3872,7 @@ void Renderer::renderHud(const Game& game)
         }
     }
 
-    // ---- Гараж ----
-    if (game.state() == GameState::Garage && game.garageTab() == 0) {
+         if (game.state() == GameState::Garage && game.garageTab() == 0) {
         const float px = 20.0f, py = 95.0f;
         const float pw = std::min(590.0f, w * 0.44f);
         const float ph = h - py - 18.0f;
@@ -4149,8 +3920,7 @@ void Renderer::renderHud(const Game& game)
             "LEVEL " + std::to_string(Game::carLevelReq(cur)) + " NEEDED" :
             canBuy ? "BUY CAR" : "NOT ENOUGH COINS";
         drawTextCentered(action, px + pw * 0.5f, ay + 17, 0.30f, actionColor);
-        // Stats stay near the 3D car, leaving the model visible.
-        const float sw = std::min(350.0f, w - pw - 85.0f);
+                 const float sw = std::min(350.0f, w - pw - 85.0f);
         const float sx = w - sw - 22.0f, sy = h - 255.0f;
         drawPanel(sx, sy, sw, 155, {0.012f,0.025f,0.04f,0.93f}, gold);
         drawTextCentered(Game::carName(cur), sx + sw * 0.5f, sy + 10, 0.41f, gold);
@@ -4175,8 +3945,7 @@ void Renderer::renderHud(const Game& game)
         const float py0 = h * 0.5f - ph * 0.5f;
         const float pcx = px0 + pw * 0.5f;
 
-        // затемнение только слева, справа виден вращающийся автомобиль
-        drawOverlayRect(0.0f, 0.0f, px0 + pw + 24.0f, h, { 0.0f, 0.0f, 0.0f, 0.86f });
+                 drawOverlayRect(0.0f, 0.0f, px0 + pw + 24.0f, h, { 0.0f, 0.0f, 0.0f, 0.86f });
 
         drawPanel(px0, py0, pw, ph, { 0.015f, 0.022f, 0.030f, 0.96f }, { 0.42f, 0.85f, 1.0f, 0.9f });
 
@@ -4185,8 +3954,7 @@ void Renderer::renderHud(const Game& game)
         drawTextCentered("GARAGE", pcx, py0 + 18.0f, 0.80f, { 0.42f, 0.85f, 1.0f, 1.0f });
         drawTextCentered("COINS " + std::to_string(game.bank()), pcx, py0 + 70.0f, 0.42f, { 1.0f, 0.88f, 0.28f, 1.0f });
 
-        // улучшения
-        for (int i = 0; i < kUpgradeCount; ++i) {
+                 for (int i = 0; i < kUpgradeCount; ++i) {
             const float ry = py0 + 125.0f + static_cast<float>(i) * 64.0f;
             const int level = game.upgradeLevel(i);
             const int cost = game.upgradeCost(i);
@@ -4223,8 +3991,7 @@ void Renderer::renderHud(const Game& game)
             }
         }
 
-        // покраска
-        const float paintY = py0 + 395.0f;
+                 const float paintY = py0 + 395.0f;
 
         drawText("PAINT", px0 + 28.0f, paintY - 4.0f, 0.28f, { 0.76f, 0.84f, 0.90f, 1.0f });
 
@@ -4274,8 +4041,7 @@ void Renderer::renderHud(const Game& game)
             }
         }
 
-        // что делает Enter на выбранном цвете
-        {
+                 {
             const int cur = game.paintCursor();
             std::string line = Game::paintName(cur);
             Color lc = { 0.90f, 0.95f, 1.0f, 1.0f };
@@ -4301,8 +4067,7 @@ void Renderer::renderHud(const Game& game)
 
         drawTextCentered("1 2 3 4 UPGRADE   ARROWS ENTER PAINT   ESC BACK", pcx, py0 + ph - 34.0f, 0.22f, { 0.80f, 0.90f, 0.95f, 1.0f });
 
-        // ---- выбор машины: панель справа поверх превью ----
-        {
+                 {
             const int cur = game.carCursor();
             const float iw = 340.0f;
             const float ih = 236.0f;
@@ -4365,8 +4130,7 @@ void Renderer::renderHud(const Game& game)
         }
     }
 
-    // ---- Настройки ----
-    if (game.state() == GameState::Settings) {
+         if (game.state() == GameState::Settings) {
         drawOverlayRect(0.0f, 0.0f, w, h, { 0.0f, 0.0f, 0.0f, 0.86f });
 
         const float pw = 760.0f;
@@ -4414,8 +4178,7 @@ void Renderer::renderHud(const Game& game)
         drawTextCentered("UP DOWN SELECT   LEFT RIGHT CHANGE   ESC BACK", centerX, py0 + ph - 44.0f, 0.22f, { 0.80f, 0.90f, 0.95f, 1.0f });
     }
 
-    // ---- Достижения ----
-    if (game.state() == GameState::Achievements) {
+         if (game.state() == GameState::Achievements) {
         drawOverlayRect(0.0f, 0.0f, w, h, { 0.0f, 0.0f, 0.0f, 0.86f });
 
         const float pw = 760.0f;
