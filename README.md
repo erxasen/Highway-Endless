@@ -1,79 +1,59 @@
-Highway Endless
-An arcade 3D racing game in C++ and OpenGL.
-Dodge traffic, collect coins, chain combos and survive as long as you can.
+# Highway Endless
 
-About:
-You drive a blue sports car down a three-lane highway. Weave through
-traffic, grab coins, pull off near misses and keep your combo alive.
-The longer you survive, the denser the traffic gets.
+**Highway Endless** is a 3D arcade highway racing game developed from scratch in **C++** using **Modern OpenGL**, **GLFW**, **GLEW**, and **Miniaudio**. Players navigate an infinitely generated highway, dodge dynamic traffic, collect coins, customize vehicles, and compete in local split-screen battles.
 
- Features:
--  Three lanes with smooth lane changes and car body roll
--  Four traffic types: sedan, sports car, van and truck
--  Coin lines of 3-6 coins
--  Combo system: coins and near misses raise your multiplier (up to x15)
--  Nitro boost that recharges on its own and is topped up by coins
--  Health bar and a short invulnerability window after a crash
--  Difficulty that ramps up over time
--  Day/night cycle, fog, trees, street lamps and city skyline
--  Custom vector-font HUD, no external fonts or textures
--  High score saved between runs
+---
 
-Controls:
-- A / Left Arrow - change lane left
-- D / Right Arrow - change lane right
-- W / Up Arrow - accelerate
-- S / Down Arrow - brake
-- Shift - nitro boost
-- P - pause / resume
-- R - restart
-- Esc - quit
+## Features
 
-Scoring and damage:
--  Coin: +120
--  Overtaken car: +60
--  Near miss: +180 and up
--  Crash damage: sedan and sports car 34, van 42, truck 55
--  Combo resets after about 3 seconds without a bonus, or on a crash
--  Nitro needs speed above 20 and recharges while not in use
--  Difficulty peaks after roughly 4 minutes
+- **Single Player Mode**: Endless procedural road generation with progressive difficulty, dynamic traffic spawning, weather effects, and Time Warp slow-motion mechanics.
+- **2 Player Battle Mode**: Local split-screen multiplayer where two players compete simultaneously to be the first to reach the 3000-meter finish line.
+- **Garage & Customization**:
+  - 6 unlockable vehicles (*Street Fox*, *Crimson GT*, *Vortex R*, *Phantom V8*, *Apex X*, *Hyperion Z*) with distinct Speed, Grip, and Armor stats.
+  - 4 upgradeable components: Engine, Tires, Armor, and Magnet.
+  - Custom vehicle paint selection.
+- **Progression & Persistence**: In-game achievement system (8 milestones), XP/leveling progression, coin economy, and persistent local high-score saving.
+- **Custom Graphics & Audio Pipeline**: Real-time 3D rendering in OpenGL with dynamic lighting, headlights, rear-view mirror, and procedural engine/SFX audio via `miniaudio`.
 
-Building
+---
 
-Requirements:
-- Windows
-- Visual Studio 2022 (toolset v143) with the Desktop development with C++ workload
-- GLFW 3 (glfw.org)
-- GLEW (glew.sourceforge.net)
+## Controls
 
-Steps:
-1. Open Final project.sln in Visual Studio.
-2. In the project properties, add GLFW and GLEW:
-   - C/C++ > General > Additional Include Directories: the include folders of GLFW and GLEW
-   - Linker > General > Additional Library Directories: the folders with the .lib files
-   - Linker > Input > Additional Dependencies: glfw3.lib; glew32.lib; opengl32.lib
-3. If you use dynamic GLEW, put glew32.dll next to the built .exe.
-4. Pick a configuration (for example Debug | x64) and press Ctrl+Shift+B.
+### Single Player
+| Key | Action |
+| :--- | :--- |
+| `A` / `D` or `Left` / `Right` | Change Lanes |
+| `W` or `Up` | Accelerate |
+| `S` or `Down` | Brake |
+| `Shift` | Activate Nitro Boost |
+| `Q` | Activate Time Warp |
+| `P` | Pause Game |
+| `R` | Instant Restart (on Crash / Game Over) |
+| `ESC` | Return to Main Menu |
 
-Project structure
-- Final project.sln - Visual Studio solution
-- Final project.vcxproj - project file
-- main.cpp - entry point, GLFW window, main loop
-- Game.hpp / Game.cpp - game logic, input, traffic, collisions
-- Renderer.hpp / Renderer.cpp - scene, cars, road, HUD and font
+### 2 Player Battle (Split-Screen)
+- **Player 1 (Left Screen)**: `W A S D` to drive, `Left Shift` for Nitro.
+- **Player 2 (Right Screen)**: `Arrow Keys` to drive, `Right Ctrl` for Nitro.
 
-Game holds all the logic and state. Renderer only reads that state
-through const getters and draws it.
+---
 
-High score:
-The best score is stored in highscore.txt in the working directory.
-It is loaded at startup and saved on exit and on game over.
-Delete the file to reset it.
+## Tech Stack
 
-Tuning
+- **Language**: C++17
+- **Graphics API**: OpenGL 3.3+
+- **Window & Input**: GLFW
+- **OpenGL Extension Loading**: GLEW
+- **Audio Engine**: Miniaudio (`miniaudio.h`)
+- **IDE / Build System**: Microsoft Visual Studio (`.sln` / `.vcxproj`)
 
-- Speeds: maxSpeed_ and baseCruiseSpeed_ in Game.hpp
-- Difficulty and spawn rate: Game::updateDifficulty
-- Crash damage: Game::checkCollisions
-- Coin and near-miss bonuses: Game::updatePickups, Game::awardNearMiss
-- Traffic colors: kTrafficColors in Game.cpp
+---
+
+## Project Structure
+
+```text
+Highway-Endless/
+├── main.cpp          # Entry point, GLFW window initialization, OpenGL context, main loop
+├── Game.cpp / .hpp   # Core gameplay logic, physics, AABB collision detection, state machine
+├── Renderer.cpp/.hpp # 3D OpenGL rendering pipeline, lighting, weather, car models, HUD
+├── Audio.cpp / .hpp  # Sound effects, engine RPM audio, and ambient audio via miniaudio
+└── packages.config   # NuGet dependencies (GLFW / GLEW)
