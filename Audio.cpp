@@ -1,7 +1,5 @@
 #include "Audio.hpp"
 
-// Если miniaudio.h лежит рядом, работает настоящий звук.
-// Если файла нет, собирается пустая заглушка и игра идёт без звука.
 #if defined(__has_include)
 #if __has_include("miniaudio.h")
 #define GAME_HAS_MINIAUDIO 1
@@ -10,7 +8,6 @@
 
 #ifdef GAME_HAS_MINIAUDIO
 
-// windows.h (его подключает miniaudio) иначе определяет макросы min, max, near, far
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
@@ -31,7 +28,6 @@ struct AudioState {
     bool started = false;
     float sampleRate = 44100.0f;
 
-    // параметры из игрового потока (читаются в звуковом потоке)
     std::atomic<float> targetRpm{ 900.0f };
     std::atomic<float> targetEngine{ 0.0f };
     std::atomic<float> targetRain{ 0.0f };
@@ -52,7 +48,6 @@ struct AudioState {
     std::atomic<int> achTrigger{ 0 };
     std::atomic<int> nearTrigger{ 0 };
 
-    // состояние звукового потока
     float curRpm = 900.0f;
     float curEngine = 0.0f;
     float curRain = 0.0f;
@@ -85,21 +80,17 @@ struct AudioState {
     float coinAge = 0.0f;
     float coinPhase = 0.0f;
 
-    // бонус: age больше длительности = не играет
     float powerAge = 99.0f;
     int powerKindCur = 0;
     float powerPhase = 0.0f;
     float powerLP = 0.0f;
 
-    // фанфара достижения
     float achAge = 99.0f;
     float achPhase = 0.0f;
 
-    // свист near miss
     float nearAge = 99.0f;
     float nearLP = 0.0f;
 
-    // сирена и скрип шин
     float sirenLfo = 0.0f;
     float sirenPhase = 0.0f;
     float skidPhase = 0.0f;
@@ -121,15 +112,13 @@ struct AudioState {
 namespace {
 
     constexpr float kTwoPi = 6.28318530717958647692f;
-    // Звук двигателя игрока. Поменяйте kEngineStyle и пересоберите:
-    // 0 = V6 спорт, 1 = V8 (низкий, бархатный), 2 = 4 цилиндра (высокий, злой)
     struct EngineStyle {
-        float cylinders;   // число цилиндров: чем больше, тем плотнее и ниже звук
-        float rpmIdle;     // обороты на малой скорости
-        float rpmSpan;     // на сколько растут обороты внутри одной передачи
-        float bright;      // 0..1, сколько высоких гармоник (резкость)
-        float rough;       // 0..1, неровность работы мотора
-        float rumble;      // 0..1, низкий гул впуска и выхлопа
+        float cylinders;   
+        float rpmIdle;     
+        float rpmSpan;     
+        float bright;     
+        float rough;       
+        float rumble;     
     };
 
     constexpr EngineStyle kEngineStyles[3] = {
@@ -210,7 +199,7 @@ namespace {
         const std::size_t delayTap = static_cast<std::size_t>(sr * 0.070f);
 
         for (ma_uint32 i = 0; i < frames; ++i) {
-            // плавное движение параметров, чтобы не было щелчков
+             
             s.curRpm += (tRpm - s.curRpm) * 0.0012f;
             s.curEngine += (tEngine - s.curEngine) * 0.0008f;
             s.curRain += (tRain - s.curRain) * 0.0004f;
@@ -227,13 +216,11 @@ namespace {
 
             const float white = whiteNoise(s);
 
-            // двигатель: импульсы цилиндров, неровность оборотов, выхлопной чих и гул
-            const EngineStyle& st = kEngine;
+                         const EngineStyle& st = kEngine;
 
             const float rpmN = std::clamp((s.curRpm - st.rpmIdle) / (st.rpmSpan + 1500.0f), 0.0f, 1.0f);
 
-            // обороты слегка «плавают», как у живого мотора
-            s.jitLP += (white - s.jitLP) * 0.002f;
+                         s.jitLP += (white - s.jitLP) * 0.002f;
 
             const float fire = s.curRpm / 60.0f * st.cylinders * 0.5f * (1.0f + st.rough * 5.0f * s.jitLP);
 
@@ -244,47 +231,38 @@ namespace {
 
             const float p = kTwoPi * s.phase;
 
-            // основной тон вспышек и гармоники; bright добавляет резкости
-            float h = std::sin(p)
+                         float h = std::sin(p)
                 + 0.65f * std::sin(2.0f * p + 0.6f)
                 + st.bright * (0.80f * std::sin(3.0f * p + 1.3f)
                     + 0.50f * std::sin(4.0f * p + 2.1f)
                     + 0.32f * std::sin(5.0f * p + 0.4f)
                     + 0.20f * std::sin(6.0f * p + 1.7f));
 
-            // половинная частота даёт характерную неровность порядка работы цилиндров
-            h += st.rough * 0.9f * std::sin(kTwoPi * s.phase2);
+                         h += st.rough * 0.9f * std::sin(kTwoPi * s.phase2);
 
-            // фильтр открывается с ростом оборотов: на холостых глухо, на высоких звонко
-            const float lpk = 0.05f + 0.20f * st.bright * (0.3f + rpmN);
+                         const float lpk = 0.05f + 0.20f * st.bright * (0.3f + rpmN);
             s.engLP += (h - s.engLP) * lpk;
             s.engLP2 += (s.engLP - s.engLP2) * lpk * 1.5f;
 
-            // чих выхлопа: шум в начале каждой вспышки
-            const float chuff = std::exp(-12.0f * s.phase) * white * (0.35f + 0.65f * rpmN);
+                         const float chuff = std::exp(-12.0f * s.phase) * white * (0.35f + 0.65f * rpmN);
 
-            // низкий гул впуска и выхлопа
-            s.rumbleLP += (white - s.rumbleLP) * 0.01f;
+                         s.rumbleLP += (white - s.rumbleLP) * 0.01f;
             const float rumbleSig = s.rumbleLP * 8.0f * st.rumble;
 
             const float engineBody = s.engLP2 * 0.55f + chuff * 0.10f + rumbleSig * 0.35f;
             const float engine = engineBody * (0.80f + 0.40f * rpmN) * s.curEngine * s.curVolEngine * 0.30f;
 
 
-            // дождь: шипение (шум без низких частот)
-            s.rainLP += (white - s.rainLP) * 0.30f;
+                         s.rainLP += (white - s.rainLP) * 0.30f;
             const float rain = (white - s.rainLP) * s.curRain * 0.10f;
 
-            // ветер: низкочастотный шум
-            s.windLP += (white - s.windLP) * 0.025f;
+                         s.windLP += (white - s.windLP) * 0.025f;
             const float wind = s.windLP * s.curWind * 0.9f;
 
-            // буст: свист среднего диапазона
-            s.boostLP += (white - s.boostLP) * 0.10f;
+                         s.boostLP += (white - s.boostLP) * 0.10f;
             const float boost = (s.boostLP - s.windLP) * s.curBoost * 0.45f;
 
-            // авария: удар шумом и низкий затухающий тон
-            float crash = 0.0f;
+                         float crash = 0.0f;
             if (s.crashEnv > 0.0005f) {
                 s.crashPhase += (35.0f + 90.0f * s.crashEnv) / sr;
                 s.crashPhase -= std::floor(s.crashPhase);
@@ -292,8 +270,7 @@ namespace {
                 s.crashEnv *= 0.99993f;
             }
 
-            // монета: два коротких тона подряд
-            float coin = 0.0f;
+                         float coin = 0.0f;
             if (s.coinEnv > 0.001f) {
                 s.coinAge += 1.0f / sr;
                 const float f = s.coinAge < 0.07f ? 988.0f : 1319.0f;
@@ -303,8 +280,7 @@ namespace {
                 s.coinEnv *= 0.99965f;
             }
 
-            // бонус: у каждого вида свой звук
-            float power = 0.0f;
+                         float power = 0.0f;
             if (s.powerAge < kPowerLen) {
                 s.powerAge += 1.0f / sr;
 
@@ -312,22 +288,19 @@ namespace {
                 const float env = (1.0f - k) * (1.0f - k) * (std::min)(1.0f, s.powerAge * 300.0f);
 
                 if (s.powerKindCur == 0) {
-                    // щит: чистый тон взлетает вверх
-                    const float f = 520.0f + 800.0f * k;
+                                         const float f = 520.0f + 800.0f * k;
                     s.powerPhase += f / sr;
                     s.powerPhase -= std::floor(s.powerPhase);
                     power = (std::sin(kTwoPi * s.powerPhase) * 0.7f + std::sin(2.0f * kTwoPi * s.powerPhase) * 0.2f) * env * 0.26f;
                 }
                 else if (s.powerKindCur == 1) {
-                    // магнит: низкий гудящий тон с дрожанием
-                    const float f = 330.0f + 45.0f * std::sin(kTwoPi * 14.0f * s.powerAge);
+                                         const float f = 330.0f + 45.0f * std::sin(kTwoPi * 14.0f * s.powerAge);
                     s.powerPhase += f / sr;
                     s.powerPhase -= std::floor(s.powerPhase);
                     power = (std::sin(kTwoPi * s.powerPhase) * 0.6f + (2.0f * s.powerPhase - 1.0f) * 0.25f) * env * 0.26f;
                 }
                 else {
-                    // нитро: пила и шум, тон резко растёт
-                    const float f = 180.0f + 900.0f * k * k;
+                                         const float f = 180.0f + 900.0f * k * k;
                     s.powerPhase += f / sr;
                     s.powerPhase -= std::floor(s.powerPhase);
                     s.powerLP += (white - s.powerLP) * (0.05f + 0.30f * k);
@@ -335,8 +308,7 @@ namespace {
                 }
             }
 
-            // достижение: четыре ноты вверх, последняя тянется
-            float ach = 0.0f;
+                         float ach = 0.0f;
             if (s.achAge < kAchLen) {
                 s.achAge += 1.0f / sr;
 
@@ -351,8 +323,7 @@ namespace {
                 ach = (std::sin(kTwoPi * s.achPhase) + 0.30f * std::sin(2.0f * kTwoPi * s.achPhase)) * env * 0.20f;
             }
 
-            // near miss: короткий свист воздуха
-            float nearMiss = 0.0f;
+                         float nearMiss = 0.0f;
             if (s.nearAge < kNearLen) {
                 s.nearAge += 1.0f / sr;
 
@@ -363,8 +334,7 @@ namespace {
                 nearMiss = (white - s.nearLP) * env * 0.16f;
             }
 
-            // сирена полиции: плавная волна между двумя тонами
-            float siren = 0.0f;
+                         float siren = 0.0f;
             if (s.curSiren > 0.001f) {
                 s.sirenLfo += 0.9f / sr;
                 s.sirenLfo -= std::floor(s.sirenLfo);
@@ -377,8 +347,7 @@ namespace {
                 siren = (std::sin(kTwoPi * s.sirenPhase) + 0.33f * std::sin(3.0f * kTwoPi * s.sirenPhase)) * s.curSiren * 0.11f;
             }
 
-            // скрип шин: тонкий визг и шипение
-            float skid = 0.0f;
+                         float skid = 0.0f;
             if (s.curSkid > 0.001f) {
                 s.skidLfo += 3.1f / sr;
                 s.skidLfo -= std::floor(s.skidLfo);
@@ -396,8 +365,7 @@ namespace {
                 + (rain + wind + boost) * s.curVolAmb
                 + (crash + coin + power + ach + nearMiss + siren + skid) * s.curVolFx;
 
-            // туннель: эхо
-            if (delaySize > delayTap) {
+                         if (delaySize > delayTap) {
                 const std::size_t readPos = (s.delayPos + delaySize - delayTap) % delaySize;
                 const float echo = s.delay[readPos];
                 s.delay[s.delayPos] = mono + echo * 0.45f;
@@ -407,8 +375,7 @@ namespace {
 
             mono *= s.curMaster * s.curVolMaster;
 
-            // мягкое ограничение, чтобы не хрипело при сумме звуков
-            const float v = std::tanh(mono);
+                         const float v = std::tanh(mono);
 
             out[i * 2] = v;
             out[i * 2 + 1] = v;
@@ -464,8 +431,7 @@ void Audio::update(float speedKmh, bool boosting, float rain, float tunnel, bool
         return;
     }
 
-    // «коробка передач»: обороты растут в пределах передачи, потом падают
-    const float gearSpan = 90.0f;
+         const float gearSpan = 90.0f;
     const float gear = std::floor(speedKmh / gearSpan);
     const float inGear = (speedKmh - gear * gearSpan) / gearSpan;
 
@@ -528,8 +494,7 @@ void Audio::setSkid(float level) {
 
 void Audio::setVolumes(float master, float engine, float effects, float ambient) {
     if (state_ != nullptr) {
-        // квадрат ближе к тому, как ухо воспринимает громкость: середина шкалы звучит именно «средне»
-        auto curve = [](float v) {
+                 auto curve = [](float v) {
             v = std::clamp(v, 0.0f, 1.0f);
             return v * v;
             };
@@ -543,7 +508,6 @@ void Audio::setVolumes(float master, float engine, float effects, float ambient)
 
 #else
 
-// заглушка: miniaudio.h не найден, звука нет
 #pragma message("Audio.cpp: miniaudio.h not found next to sources, building WITHOUT sound")
 struct AudioState {};
 
